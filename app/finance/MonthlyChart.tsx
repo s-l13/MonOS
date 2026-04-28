@@ -45,8 +45,7 @@ export default function MonthlyChart({ data }: { data: ChartEntry[] }) {
           }}
           labelStyle={{ color: "#F3F4F6", fontWeight: 600 }}
           formatter={(value, name) => {
-            if (value === undefined) return ['', ''];
-            const num = typeof value === 'number' ? value : Number(value);
+            const num = value === undefined ? 0 : Number(value);
             return [
               `${num.toLocaleString("en-SA")} ر.س`,
               name === "income" ? "دخل" : "مصروف",
