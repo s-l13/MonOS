@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node *)",
+      "Bash(npx drizzle-kit *)",
+      "Bash(xargs -I{} npx drizzle-kit push --url \"{}\")",
+      "Bash(npm run *)",
+      "PowerShell($env:DATABASE_URL = \"postgresql://neondb_owner:npg_UOD7QyC1THFu@ep-red-boat-ao1kooh3-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\"; cd C:\\\\SULMANG\\\\executive-os; npx drizzle-kit push --force 2>&1)"
+    ]
+  }
+}
