@@ -2,11 +2,12 @@
 
 import { verifyWebhook } from "@clerk/nextjs/webhooks";
 import { clerkClient } from "@clerk/nextjs/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { profiles } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   // Verify signature — verifyWebhook reads CLERK_WEBHOOK_SIGNING_SECRET automatically
   let evt;
   try {
