@@ -64,10 +64,10 @@ export default function TaskStatusChart({ counts }: Props) {
           ))}
         </Pie>
         <Tooltip
-          formatter={(value: number) => [
-            `${value} (${Math.round((value / total) * 100)}%)`,
-            "",
-          ]}
+          formatter={(value) => {
+            const num = value === undefined ? 0 : Number(value);
+            return [`${num} (${Math.round((num / total) * 100)}%)`, ""];
+          }}
           contentStyle={{
             borderRadius: "8px",
             border: "1px solid #374151",

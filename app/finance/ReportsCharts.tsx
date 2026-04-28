@@ -22,8 +22,9 @@ const TOOLTIP_STYLE = {
   labelStyle:   { color: "#F3F4F6", fontWeight: 600 },
 };
 
-function sarFormatter(value: number) {
-  return [`${value.toLocaleString("en-SA")} ر.س`];
+function sarFormatter(value: unknown) {
+  const num = value === undefined ? 0 : Number(value);
+  return [`${num.toLocaleString("en-SA")} ر.س`];
 }
 
 export default function ReportsCharts({ monthly, categories, projects }: ReportsData) {
@@ -49,10 +50,13 @@ export default function ReportsCharts({ monthly, categories, projects }: Reports
               />
               <Tooltip
                 {...TOOLTIP_STYLE}
-                formatter={(v: number, name: string) => [
-                  `${v.toLocaleString("en-SA")} ر.س`,
-                  name === "income" ? "دخل" : "مصروف",
-                ]}
+                formatter={(v, name) => {
+                  const num = v === undefined ? 0 : Number(v);
+                  return [
+                    `${num.toLocaleString("en-SA")} ر.س`,
+                    name === "income" ? "دخل" : "مصروف",
+                  ];
+                }}
               />
               <Legend
                 formatter={(v: string) => v === "income" ? "دخل" : "مصروف"}
@@ -92,7 +96,7 @@ export default function ReportsCharts({ monthly, categories, projects }: Reports
                 </Pie>
                 <Tooltip
                   {...TOOLTIP_STYLE}
-                  formatter={(v: number) => sarFormatter(v)}
+                  formatter={(v) => sarFormatter(v)}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -131,11 +135,12 @@ export default function ReportsCharts({ monthly, categories, projects }: Reports
               />
               <Tooltip
                 {...TOOLTIP_STYLE}
-                formatter={(v: number, name: string) => {
+                formatter={(v, name) => {
+                  const num = v === undefined ? 0 : Number(v);
                   const labels: Record<string, string> = {
                     income: "دخل", expense: "مصروف", investment: "استثمار",
                   };
-                  return [`${v.toLocaleString("en-SA")} ر.س`, labels[name] ?? name];
+                  return [`${num.toLocaleString("en-SA")} ر.س`, labels[String(name)] ?? String(name)];
                 }}
               />
               <Legend
