@@ -44,10 +44,14 @@ export default function MonthlyChart({ data }: { data: ChartEntry[] }) {
             borderRadius: "8px",
           }}
           labelStyle={{ color: "#F3F4F6", fontWeight: 600 }}
-          formatter={(value: number, name: string) => [
-            `${value.toLocaleString("en-SA")} ر.س`,
-            name === "income" ? "دخل" : "مصروف",
-          ]}
+          formatter={(value, name) => {
+            if (value === undefined) return ['', ''];
+            const num = typeof value === 'number' ? value : Number(value);
+            return [
+              `${num.toLocaleString("en-SA")} ر.س`,
+              name === "income" ? "دخل" : "مصروف",
+            ];
+          }}
         />
         <Legend
           formatter={(value: string) => (value === "income" ? "دخل" : "مصروف")}
