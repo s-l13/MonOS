@@ -4,9 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { auth } from "@clerk/nextjs/server";
 
 export async function updateProject(formData: FormData) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("غير مصرح");
+
   const id = String(formData.get("id") || "").trim();
   const name = String(formData.get("name") || "").trim();
   const entityId = String(formData.get("entity_id") || "").trim();
@@ -32,7 +36,7 @@ export async function updateProject(formData: FormData) {
     start_date: startDateRaw || null,
     description: description || null,
     notes: notes || null,
-  }).where(eq(projects.id, id));
+  }).where(and(eq(projects.id, id), eq(projects.user_id, userId)));
 
   revalidatePath("/projects");
   redirect("/projects");

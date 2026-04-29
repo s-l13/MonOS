@@ -77,6 +77,7 @@ export const config = {
     "/tasks/:path*",
     "/finance/:path*",
     "/admin/:path*",
+    "/profile(.*)",
     "/assigned-to-me(.*)",
     "/notifications(.*)",
     "/login(.*)",

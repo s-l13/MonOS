@@ -11,11 +11,13 @@ export default async function Sidebar() {
   const isSuperAdmin = metadata.role === "super_admin";
 
   let subtitle = "لوحتك التشغيلية";
+  let clerkFirstName: string | null = null;
   if (userId) {
     const client = await clerkClient();
     const clerkUser = await client.users.getUser(userId);
-    if (clerkUser.firstName) {
-      subtitle = `لوحة ${clerkUser.firstName} التشغيلية`;
+    clerkFirstName = clerkUser.firstName ?? null;
+    if (clerkFirstName) {
+      subtitle = `لوحة ${clerkFirstName} التشغيلية`;
     }
   }
 
@@ -97,6 +99,19 @@ export default async function Sidebar() {
             ))}
           </div>
         </div>
+
+        {/* Profile link */}
+        {userId && (
+          <Link
+            href="/profile"
+            className="mt-2 flex items-center gap-2 rounded-lg bg-gray-800 px-3 py-2 text-sm text-gray-200 transition hover:bg-gray-700"
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+              {clerkFirstName?.charAt(0)?.toUpperCase() ?? "؟"}
+            </span>
+            <span className="truncate">{clerkFirstName ?? "الملف الشخصي"}</span>
+          </Link>
+        )}
 
         {/* Logout — always last */}
         <Link

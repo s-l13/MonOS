@@ -7,8 +7,13 @@ import Button from "@/components/ui/button";
 import Card from "@/components/ui/card";
 import PageHeader from "@/components/ui/page-header";
 import StatusBadge from "@/components/ui/status-badge";
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 
 export default async function TasksPage() {
+  const { userId } = await auth();
+  if (!userId) redirect("/login");
+
   const taskList = await db
     .select({
       id: tasks.id,
@@ -26,6 +31,7 @@ export default async function TasksPage() {
     .from(tasks)
     .leftJoin(entities, eq(tasks.entity_id, entities.id))
     .leftJoin(projects, eq(tasks.project_id, projects.id))
+    .where(eq(tasks.user_id, userId))
     .orderBy(desc(tasks.created_at));
 
   return (

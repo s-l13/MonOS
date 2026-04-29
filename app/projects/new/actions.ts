@@ -4,8 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { projects } from "@/lib/schema";
+import { auth } from "@clerk/nextjs/server";
 
 export async function createProject(formData: FormData) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("غير مصرح");
+
   const name = String(formData.get("name") || "").trim();
   const entityId = String(formData.get("entity_id") || "").trim();
   const ownershipType = String(formData.get("ownership_type") || "").trim();
@@ -20,6 +24,7 @@ export async function createProject(formData: FormData) {
   if (!entityId) throw new Error("يجب اختيار الكيان");
 
   await db.insert(projects).values({
+    user_id: userId,
     name,
     entity_id: entityId,
     ownership_type: ownershipType || "sole",

@@ -1,17 +1,23 @@
 import Sidebar from "@/components/sidebar";
 import { db } from "@/lib/db";
 import { entities } from "@/lib/schema";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import Button from "@/components/ui/button";
 import Card from "@/components/ui/card";
 import PageHeader from "@/components/ui/page-header";
 import StatusBadge from "@/components/ui/status-badge";
 import { deleteEntity } from "./actions";
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 
 export default async function EntitiesPage() {
+  const { userId } = await auth();
+  if (!userId) redirect("/login");
+
   const entityList = await db
     .select()
     .from(entities)
+    .where(eq(entities.user_id, userId))
     .orderBy(desc(entities.created_at));
 
   return (

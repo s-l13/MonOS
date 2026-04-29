@@ -4,8 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { tasks } from "@/lib/schema";
+import { auth } from "@clerk/nextjs/server";
 
 export async function createTask(formData: FormData) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("غير مصرح");
+
   const title = String(formData.get("title") || "").trim();
   const taskType = String(formData.get("task_type") || "").trim();
   const contextLabel = String(formData.get("context_label") || "").trim();
@@ -30,6 +34,7 @@ export async function createTask(formData: FormData) {
   const safeProgress = Number.isNaN(progressPercent) ? 0 : Math.max(0, Math.min(100, progressPercent));
 
   await db.insert(tasks).values({
+    user_id: userId,
     title,
     task_type: taskType || "personal",
     context_label: contextLabel || null,

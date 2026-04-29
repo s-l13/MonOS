@@ -30,6 +30,7 @@ export const profiles = pgTable("profiles", {
 // ------------------------------------------------------------------
 export const entities = pgTable("entities", {
   id:          uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  user_id:     text("user_id").notNull(),
   name:        text("name").notNull(),
   entity_type: text("entity_type").notNull().default("sole"),
   status:      text("status").notNull().default("active"),
@@ -44,6 +45,7 @@ export const entities = pgTable("entities", {
 // ------------------------------------------------------------------
 export const projects = pgTable("projects", {
   id:               uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  user_id:          text("user_id").notNull(),
   name:             text("name").notNull(),
   entity_id:        uuid("entity_id").references(() => entities.id),
   ownership_type:   text("ownership_type").notNull().default("sole"),
@@ -63,6 +65,7 @@ export const projects = pgTable("projects", {
 // ------------------------------------------------------------------
 export const tasks = pgTable("tasks", {
   id:               uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  user_id:          text("user_id").notNull(),
   title:            text("title").notNull(),
   task_type:        text("task_type").notNull().default("personal"),
   context_label:    text("context_label"),
@@ -91,6 +94,7 @@ export const tasks = pgTable("tasks", {
 // ------------------------------------------------------------------
 export const taskSubtasks = pgTable("task_subtasks", {
   id:           uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  user_id:      text("user_id").notNull(),
   task_id:      uuid("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
   title:        text("title").notNull(),
   is_completed: boolean("is_completed").notNull().default(false),
@@ -104,6 +108,7 @@ export const taskSubtasks = pgTable("task_subtasks", {
 // ------------------------------------------------------------------
 export const partners = pgTable("partners", {
   id:         uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  user_id:    text("user_id").notNull(),
   name:       text("name").notNull(),
   created_at: timestamp("created_at", { withTimezone: true })
                 .notNull()

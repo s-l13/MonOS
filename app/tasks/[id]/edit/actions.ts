@@ -4,9 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { tasks } from "@/lib/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { auth } from "@clerk/nextjs/server";
 
 export async function updateTask(formData: FormData) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("غير مصرح");
+
   const id = String(formData.get("id") || "").trim();
   const title = String(formData.get("title") || "").trim();
   const taskType = String(formData.get("task_type") || "").trim();
@@ -51,7 +55,7 @@ export async function updateTask(formData: FormData) {
     remind_one_week: remindOneWeek,
     remind_one_day: remindOneDay,
     notes: notes || null,
-  }).where(eq(tasks.id, id));
+  }).where(and(eq(tasks.id, id), eq(tasks.user_id, userId)));
 
   revalidatePath("/tasks");
   redirect("/tasks");

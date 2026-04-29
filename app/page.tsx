@@ -2,14 +2,19 @@ import type { ReactNode } from "react";
 import Sidebar from "@/components/sidebar";
 import { db } from "@/lib/db";
 import { entities, projects, tasks, partners } from "@/lib/schema";
-import { count, desc } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import Button from "@/components/ui/button";
 import Card from "@/components/ui/card";
 import PageHeader from "@/components/ui/page-header";
 import TaskStatusChart from "@/components/ui/task-status-chart";
 import { Building2, FolderKanban, CheckSquare, Users } from "lucide-react";
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 
 export default async function Home() {
+  const { userId } = await auth();
+  if (!userId) redirect("/login");
+
   const [
     [entityCount],
     [projectCount],
@@ -18,10 +23,10 @@ export default async function Home() {
     latestTasks,
     allTasks,
   ] = await Promise.all([
-    db.select({ count: count() }).from(entities),
-    db.select({ count: count() }).from(projects),
-    db.select({ count: count() }).from(tasks),
-    db.select({ count: count() }).from(partners),
+    db.select({ count: count() }).from(entities).where(eq(entities.user_id, userId)),
+    db.select({ count: count() }).from(projects).where(eq(projects.user_id, userId)),
+    db.select({ count: count() }).from(tasks).where(eq(tasks.user_id, userId)),
+    db.select({ count: count() }).from(partners).where(eq(partners.user_id, userId)),
     db.select({
       id: tasks.id,
       title: tasks.title,
@@ -31,8 +36,8 @@ export default async function Home() {
       status: tasks.status,
       due_date: tasks.due_date,
       progress_percent: tasks.progress_percent,
-    }).from(tasks).orderBy(desc(tasks.created_at)).limit(5),
-    db.select({ id: tasks.id, status: tasks.status, progress_percent: tasks.progress_percent }).from(tasks),
+    }).from(tasks).where(eq(tasks.user_id, userId)).orderBy(desc(tasks.created_at)).limit(5),
+    db.select({ id: tasks.id, status: tasks.status, progress_percent: tasks.progress_percent }).from(tasks).where(eq(tasks.user_id, userId)),
   ]);
 
   const counts = {

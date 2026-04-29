@@ -4,9 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { entities } from "@/lib/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { auth } from "@clerk/nextjs/server";
 
 export async function updateEntity(formData: FormData) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("غير مصرح");
+
   const id = String(formData.get("id") || "").trim();
   const name = String(formData.get("name") || "").trim();
   const entityType = String(formData.get("entity_type") || "").trim();
@@ -21,7 +25,7 @@ export async function updateEntity(formData: FormData) {
     entity_type: entityType,
     status,
     description: description || null,
-  }).where(eq(entities.id, id));
+  }).where(and(eq(entities.id, id), eq(entities.user_id, userId)));
 
   revalidatePath("/entities");
   redirect("/entities");

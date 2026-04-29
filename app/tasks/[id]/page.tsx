@@ -2,9 +2,11 @@ import Sidebar from "@/components/sidebar";
 import StatusBadge from "@/components/ui/status-badge";
 import { db } from "@/lib/db";
 import { tasks, taskSubtasks, taskAssignments, entities, projects } from "@/lib/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { createSubtask, toggleSubtaskStatus, deleteSubtask } from "../subtask-actions";
 import { assignTask } from "../assignment-actions";
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -12,6 +14,9 @@ type Props = {
 };
 
 export default async function TaskDetailsPage({ params, searchParams }: Props) {
+  const { userId } = await auth();
+  if (!userId) redirect("/login");
+
   const { id } = await params;
   const { assign_error } = await searchParams;
 
@@ -40,7 +45,7 @@ export default async function TaskDetailsPage({ params, searchParams }: Props) {
     .from(tasks)
     .leftJoin(entities, eq(tasks.entity_id, entities.id))
     .leftJoin(projects, eq(tasks.project_id, projects.id))
-    .where(eq(tasks.id, id)),
+    .where(and(eq(tasks.id, id), eq(tasks.user_id, userId))),
     db.select().from(taskSubtasks).where(eq(taskSubtasks.task_id, id)).orderBy(desc(taskSubtasks.created_at)),
     db.select().from(taskAssignments).where(eq(taskAssignments.task_id, id)).orderBy(desc(taskAssignments.created_at)),
   ]);

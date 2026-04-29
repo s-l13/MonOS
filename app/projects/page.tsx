@@ -7,8 +7,13 @@ import Card from "@/components/ui/card";
 import PageHeader from "@/components/ui/page-header";
 import StatusBadge from "@/components/ui/status-badge";
 import { deleteProject } from "./actions";
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 
 export default async function ProjectsPage() {
+  const { userId } = await auth();
+  if (!userId) redirect("/login");
+
   const projectList = await db
     .select({
       id: projects.id,
@@ -23,6 +28,7 @@ export default async function ProjectsPage() {
     })
     .from(projects)
     .leftJoin(entities, eq(projects.entity_id, entities.id))
+    .where(eq(projects.user_id, userId))
     .orderBy(desc(projects.created_at));
 
   return (
