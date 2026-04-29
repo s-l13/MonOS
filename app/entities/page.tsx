@@ -6,6 +6,7 @@ import Button from "@/components/ui/button";
 import Card from "@/components/ui/card";
 import PageHeader from "@/components/ui/page-header";
 import StatusBadge from "@/components/ui/status-badge";
+import { deleteEntity } from "./actions";
 
 export default async function EntitiesPage() {
   const entityList = await db
@@ -50,9 +51,15 @@ export default async function EntitiesPage() {
                         </td>
                         <td className="px-3 py-4 text-gray-400">{entity.description ?? "-"}</td>
                         <td className="px-3 py-4">
-                          <Button href={`/entities/${entity.id}/edit`} variant="secondary" className="px-3 py-2 text-xs">
-                            تعديل
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button href={`/entities/${entity.id}/edit`} variant="secondary" className="px-3 py-2 text-xs">
+                              تعديل
+                            </Button>
+                            <form action={deleteEntity}>
+                              <input type="hidden" name="id" value={entity.id} />
+                              <Button type="submit" variant="danger" className="px-3 py-2 text-xs">حذف</Button>
+                            </form>
+                          </div>
                         </td>
                       </tr>
                     ))}

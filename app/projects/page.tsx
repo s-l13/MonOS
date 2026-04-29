@@ -6,6 +6,7 @@ import Button from "@/components/ui/button";
 import Card from "@/components/ui/card";
 import PageHeader from "@/components/ui/page-header";
 import StatusBadge from "@/components/ui/status-badge";
+import { deleteProject } from "./actions";
 
 export default async function ProjectsPage() {
   const projectList = await db
@@ -67,9 +68,15 @@ export default async function ProjectsPage() {
                         <td className="px-3 py-4 text-gray-400">{project.progress_percent ?? 0}%</td>
                         <td className="px-3 py-4 text-gray-400">{project.start_date ?? "-"}</td>
                         <td className="px-3 py-4">
-                          <Button href={`/projects/${project.id}/edit`} variant="secondary" className="px-3 py-2 text-xs">
-                            تعديل
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button href={`/projects/${project.id}/edit`} variant="secondary" className="px-3 py-2 text-xs">
+                              تعديل
+                            </Button>
+                            <form action={deleteProject}>
+                              <input type="hidden" name="id" value={project.id} />
+                              <Button type="submit" variant="danger" className="px-3 py-2 text-xs">حذف</Button>
+                            </form>
+                          </div>
                         </td>
                       </tr>
                     ))}
