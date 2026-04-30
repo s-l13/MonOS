@@ -80,7 +80,7 @@ export default async function PriceDetailPage({
         href="/prices"
         className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-200 mb-6 transition"
       >
-        ← العودة لقائمة الأسعار
+        ← مقارنة الأسعار
       </Link>
 
       {/* Header */}

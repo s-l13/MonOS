@@ -58,6 +58,12 @@ export default async function PricesPage({
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-4 md:p-8" dir="rtl">
+      <Link
+        href="/"
+        className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-200 mb-6 transition"
+      >
+        ← الصفحة الرئيسية
+      </Link>
       <h1 className="text-2xl font-bold mb-2">مقارنة الأسعار</h1>
       <p className="text-gray-400 text-sm mb-6">بيانات مشتركة بين جميع المستخدمين — الأسماء مخفية</p>
 
