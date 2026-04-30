@@ -38,6 +38,7 @@ export default async function Sidebar() {
     { href: "/tasks", label: "المهام" },
     { href: "/assigned-to-me", label: "المهام الموكلة إليّ" },
     { href: "/prices", label: "مقارنة الأسعار" },
+    { href: "/prices/session", label: "جلسة تسوق" },
     ...(isSuperAdmin
       ? [
           { href: "/admin/users",   label: "إدارة المستخدمين" },

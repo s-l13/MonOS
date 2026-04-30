@@ -289,12 +289,27 @@ export const priceProducts = pgTable("price_products", {
 });
 
 // ------------------------------------------------------------------
+// shopping_sessions
+// ------------------------------------------------------------------
+export const shoppingSessions = pgTable("shopping_sessions", {
+  id:           uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  user_id:      text("user_id").notNull(),
+  store_name:   text("store_name").notNull(),
+  city:         text("city"),
+  session_date: date("session_date").notNull(),
+  notes:        text("notes"),
+  is_active:    boolean("is_active").notNull().default(true),
+  created_at:   timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+// ------------------------------------------------------------------
 // price_entries
 // ------------------------------------------------------------------
 export const priceEntries = pgTable("price_entries", {
   id:            uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   user_id:       text("user_id").notNull(),
   product_id:    uuid("product_id").notNull().references(() => priceProducts.id, { onDelete: "cascade" }),
+  session_id:    uuid("session_id").references(() => shoppingSessions.id, { onDelete: "set null" }),
   store_name:    text("store_name").notNull(),
   city:          text("city"),
   price:         numeric("price", { precision: 10, scale: 2 }).notNull(),
@@ -305,8 +320,9 @@ export const priceEntries = pgTable("price_entries", {
   created_at:    timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
 });
 
-export type PriceProduct = typeof priceProducts.$inferSelect;
-export type PriceEntry   = typeof priceEntries.$inferSelect;
+export type PriceProduct    = typeof priceProducts.$inferSelect;
+export type PriceEntry      = typeof priceEntries.$inferSelect;
+export type ShoppingSession = typeof shoppingSessions.$inferSelect;
 
 // ------------------------------------------------------------------
 // TypeScript row types inferred from schema

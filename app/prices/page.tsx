@@ -64,8 +64,24 @@ export default async function PricesPage({
       >
         ← الصفحة الرئيسية
       </Link>
-      <h1 className="text-2xl font-bold mb-2">مقارنة الأسعار</h1>
-      <p className="text-gray-400 text-sm mb-6">بيانات مشتركة بين جميع المستخدمين — الأسماء مخفية</p>
+      <h1 className="text-2xl font-bold mb-4">مقارنة الأسعار</h1>
+
+      <div className="mb-8 rounded-xl border border-blue-800 bg-blue-950/30 p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-bold text-blue-300">🛒 جلسة التسوق</h2>
+            <p className="mt-1 text-sm text-gray-400">
+              ابدأ جلسة تسوق لتسجيل أسعار منتجات متعددة من نفس المتجر دفعة واحدة — أدخل اسم المتجر مرة واحدة فقط ثم أضف جميع المنتجات وأسعارها بسرعة
+            </p>
+          </div>
+          <Link
+            href="/prices/session"
+            className="shrink-0 rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-blue-500 hover:shadow-lg hover:shadow-blue-900/50"
+          >
+            بدء جلسة ←
+          </Link>
+        </div>
+      </div>
 
       {/* Search */}
       <form method="GET" className="mb-6 flex gap-2">
