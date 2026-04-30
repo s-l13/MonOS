@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { priceProducts, priceEntries } from "@/lib/schema";
-import { sql, eq, asc } from "drizzle-orm";
+import { priceProducts, priceEntries, profiles } from "@/lib/schema";
+import { sql, eq, asc, inArray } from "drizzle-orm";
 import { addPriceEntry, deletePriceEntry } from "../actions";
 
 const CATEGORIES: Record<string, string> = {
@@ -28,7 +28,8 @@ export default async function PriceDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { userId } = await auth();
+  const { userId, sessionClaims } = await auth();
+  const isSuperAdmin = (sessionClaims?.metadata as { role?: string })?.role === "super_admin";
   const { id } = await params;
 
   const [product] = await db
@@ -47,10 +48,10 @@ export default async function PriceDetailPage({
 
   const [aggRow] = await db
     .select({
-      min_unit:    sql<string>`min(${priceEntries.unit_price})`,
-      max_unit:    sql<string>`max(${priceEntries.unit_price})`,
-      avg_unit:    sql<string>`avg(${priceEntries.unit_price})`,
-      total:       sql<number>`count(*)::int`,
+      min_unit: sql<string>`min(${priceEntries.unit_price})`,
+      max_unit: sql<string>`max(${priceEntries.unit_price})`,
+      avg_unit: sql<string>`avg(${priceEntries.unit_price})`,
+      total:    sql<number>`count(*)::int`,
     })
     .from(priceEntries)
     .where(eq(priceEntries.product_id, id));
@@ -60,15 +61,27 @@ export default async function PriceDetailPage({
   const avgPrice = aggRow?.avg_unit ? Number(aggRow.avg_unit) : null;
   const total    = aggRow?.total ?? 0;
 
+  // For super admin: fetch contributor emails from profiles
+  let emailMap = new Map<string, string>();
+  if (isSuperAdmin && entries.length > 0) {
+    const distinctIds = [...new Set(entries.map((e) => e.user_id))];
+    const profileRows = await db
+      .select({ id: profiles.id, email: profiles.email })
+      .from(profiles)
+      .where(inArray(profiles.id, distinctIds));
+    emailMap = new Map(profileRows.map((p) => [p.id, p.email ?? p.id]));
+  }
+
   const today = new Date().toISOString().split("T")[0];
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-4 md:p-8" dir="rtl">
-      <div className="mb-6">
-        <Link href="/prices" className="text-gray-400 hover:text-gray-200 text-sm">
-          ← العودة للمنتجات
-        </Link>
-      </div>
+      <Link
+        href="/prices"
+        className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-200 mb-6 transition"
+      >
+        ← العودة لقائمة الأسعار
+      </Link>
 
       {/* Header */}
       <div className="mb-6">
@@ -126,14 +139,18 @@ export default async function PriceDetailPage({
                 <th className="text-right py-2 px-3 font-medium">السعر الكلي</th>
                 <th className="text-right py-2 px-3 font-medium">سعر الوحدة</th>
                 <th className="text-right py-2 px-3 font-medium">تصنيف</th>
+                {isSuperAdmin && (
+                  <th className="text-right py-2 px-3 font-medium">المسجّل</th>
+                )}
                 <th className="py-2 px-3" />
               </tr>
             </thead>
             <tbody>
               {entries.map((entry) => {
-                const up = Number(entry.unit_price);
+                const up    = Number(entry.unit_price);
                 const isMin = minPrice !== null && up === minPrice;
                 const isMax = maxPrice !== null && up === maxPrice;
+                const canDelete = entry.user_id === userId || isSuperAdmin;
                 return (
                   <tr
                     key={entry.id}
@@ -158,8 +175,13 @@ export default async function PriceDetailPage({
                         <span className="rounded-full bg-gray-800 text-gray-400 px-2 py-0.5 text-xs">مناسب</span>
                       )}
                     </td>
+                    {isSuperAdmin && (
+                      <td className="py-2 px-3 text-gray-400 text-xs">
+                        {emailMap.get(entry.user_id) ?? entry.user_id}
+                      </td>
+                    )}
                     <td className="py-2 px-3">
-                      {entry.user_id === userId && (
+                      {canDelete && (
                         <form action={deletePriceEntry}>
                           <input type="hidden" name="id" value={entry.id} />
                           <input type="hidden" name="product_id" value={id} />

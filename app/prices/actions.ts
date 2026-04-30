@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { priceProducts, priceEntries } from "@/lib/schema";
+import { priceProducts, priceEntries, profiles } from "@/lib/schema";
 
 export async function createProduct(formData: FormData) {
   const { userId } = await auth();
@@ -39,6 +39,11 @@ export async function addPriceEntry(formData: FormData) {
   const { userId } = await auth();
   if (!userId) return;
 
+  const [profile] = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1);
+  if (profile?.prices_banned) {
+    throw new Error("تم إيقاف صلاحيتك في التسعير");
+  }
+
   const product_id    = String(formData.get("product_id")    || "").trim();
   const store_name    = String(formData.get("store_name")    || "").trim();
   const city          = String(formData.get("city")          || "").trim() || null;
@@ -68,17 +73,56 @@ export async function addPriceEntry(formData: FormData) {
 }
 
 export async function deletePriceEntry(formData: FormData) {
-  const { userId } = await auth();
+  const { userId, sessionClaims } = await auth();
   if (!userId) return;
+
+  const isSuperAdmin = (sessionClaims?.metadata as { role?: string })?.role === "super_admin";
 
   const id         = String(formData.get("id")         || "").trim();
   const product_id = String(formData.get("product_id") || "").trim();
   if (!id) return;
 
-  await db
-    .delete(priceEntries)
-    .where(and(eq(priceEntries.id, id), eq(priceEntries.user_id, userId)));
+  if (isSuperAdmin) {
+    await db.delete(priceEntries).where(eq(priceEntries.id, id));
+  } else {
+    await db
+      .delete(priceEntries)
+      .where(and(eq(priceEntries.id, id), eq(priceEntries.user_id, userId)));
+  }
 
   revalidatePath("/prices");
+  revalidatePath("/admin/prices");
   if (product_id) revalidatePath("/prices/" + product_id);
+}
+
+export async function banUserFromPricing(formData: FormData) {
+  const { sessionClaims } = await auth();
+  const isSuperAdmin = (sessionClaims?.metadata as { role?: string })?.role === "super_admin";
+  if (!isSuperAdmin) return;
+
+  const targetUserId = String(formData.get("user_id") || "").trim();
+  if (!targetUserId) return;
+
+  await db
+    .update(profiles)
+    .set({ prices_banned: true })
+    .where(eq(profiles.id, targetUserId));
+
+  revalidatePath("/admin/prices");
+}
+
+export async function unbanUserFromPricing(formData: FormData) {
+  const { sessionClaims } = await auth();
+  const isSuperAdmin = (sessionClaims?.metadata as { role?: string })?.role === "super_admin";
+  if (!isSuperAdmin) return;
+
+  const targetUserId = String(formData.get("user_id") || "").trim();
+  if (!targetUserId) return;
+
+  await db
+    .update(profiles)
+    .set({ prices_banned: false })
+    .where(eq(profiles.id, targetUserId));
+
+  revalidatePath("/admin/prices");
 }

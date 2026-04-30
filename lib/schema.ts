@@ -19,6 +19,7 @@ export const profiles = pgTable("profiles", {
   email:           text("email"),
   role:            text("role").notNull().default("user"),
   approval_status: text("approval_status").notNull().default("pending"),
+  prices_banned:   boolean("prices_banned").notNull().default(false),
   created_at:      timestamp("created_at", { withTimezone: true })
                      .notNull()
                      .default(sql`now()`),
