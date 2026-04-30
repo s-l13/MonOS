@@ -275,6 +275,39 @@ export const financeDebtInstallments = pgTable("finance_debt_installments", {
 });
 
 // ------------------------------------------------------------------
+// price_products
+// ------------------------------------------------------------------
+export const priceProducts = pgTable("price_products", {
+  id:         uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  created_by: text("created_by").notNull(),
+  name:       text("name").notNull(),
+  category:   text("category").notNull().default("other"),
+  unit:       text("unit").notNull().default("piece"),
+  notes:      text("notes"),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+// ------------------------------------------------------------------
+// price_entries
+// ------------------------------------------------------------------
+export const priceEntries = pgTable("price_entries", {
+  id:            uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  user_id:       text("user_id").notNull(),
+  product_id:    uuid("product_id").notNull().references(() => priceProducts.id, { onDelete: "cascade" }),
+  store_name:    text("store_name").notNull(),
+  city:          text("city"),
+  price:         numeric("price", { precision: 10, scale: 2 }).notNull(),
+  quantity:      numeric("quantity", { precision: 10, scale: 2 }).notNull().default("1"),
+  unit_price:    numeric("unit_price", { precision: 10, scale: 2 }).notNull(),
+  purchase_date: date("purchase_date").notNull(),
+  notes:         text("notes"),
+  created_at:    timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+export type PriceProduct = typeof priceProducts.$inferSelect;
+export type PriceEntry   = typeof priceEntries.$inferSelect;
+
+// ------------------------------------------------------------------
 // TypeScript row types inferred from schema
 // ------------------------------------------------------------------
 export type Profile                  = typeof profiles.$inferSelect;
