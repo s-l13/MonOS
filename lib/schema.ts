@@ -325,6 +325,145 @@ export type PriceEntry      = typeof priceEntries.$inferSelect;
 export type ShoppingSession = typeof shoppingSessions.$inferSelect;
 
 // ------------------------------------------------------------------
+// fitness_profiles
+// ------------------------------------------------------------------
+export const fitnessProfiles = pgTable("fitness_profiles", {
+  id:                   uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  user_id:              text("user_id").notNull().unique(),
+  age:                  integer("age"),
+  gender:               text("gender"),
+  height:               numeric("height", { precision: 5, scale: 2 }),
+  current_weight:       numeric("current_weight", { precision: 5, scale: 2 }),
+  target_weight:        numeric("target_weight", { precision: 5, scale: 2 }),
+  activity_level:       text("activity_level").default("moderate"),
+  goal:                 text("goal").default("general_health"),
+  workout_days_per_week: integer("workout_days_per_week").default(3),
+  health_notes:         text("health_notes"),
+  nutrition_notes:      text("nutrition_notes"),
+  created_at:           timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  updated_at:           timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+// ------------------------------------------------------------------
+// calorie_calculations
+// ------------------------------------------------------------------
+export const calorieCalculations = pgTable("calorie_calculations", {
+  id:              uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  user_id:         text("user_id").notNull(),
+  bmr:             numeric("bmr", { precision: 8, scale: 2 }),
+  tdee:            numeric("tdee", { precision: 8, scale: 2 }),
+  target_calories: numeric("target_calories", { precision: 8, scale: 2 }),
+  protein_g:       numeric("protein_g", { precision: 8, scale: 2 }),
+  carbs_g:         numeric("carbs_g", { precision: 8, scale: 2 }),
+  fat_g:           numeric("fat_g", { precision: 8, scale: 2 }),
+  goal:            text("goal"),
+  created_at:      timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+// ------------------------------------------------------------------
+// exercise_library
+// ------------------------------------------------------------------
+export const exerciseLibrary = pgTable("exercise_library", {
+  id:           uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name_ar:      text("name_ar").notNull(),
+  name_en:      text("name_en").notNull(),
+  muscle_group: text("muscle_group").notNull(),
+  equipment:    text("equipment"),
+  difficulty:   text("difficulty").default("medium"),
+  image_url:    text("image_url"),
+  video_url:    text("video_url"),
+  description:  text("description"),
+  created_at:   timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+// ------------------------------------------------------------------
+// workout_plans
+// ------------------------------------------------------------------
+export const workoutPlans = pgTable("workout_plans", {
+  id:           uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  user_id:      text("user_id").notNull(),
+  name:         text("name").notNull(),
+  goal:         text("goal"),
+  days_per_week: integer("days_per_week"),
+  start_date:   date("start_date"),
+  end_date:     date("end_date"),
+  is_active:    boolean("is_active").default(true),
+  created_at:   timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+// ------------------------------------------------------------------
+// workout_plan_days
+// ------------------------------------------------------------------
+export const workoutPlanDays = pgTable("workout_plan_days", {
+  id:          uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  plan_id:     uuid("plan_id").notNull().references(() => workoutPlans.id, { onDelete: "cascade" }),
+  day_name:    text("day_name").notNull(),
+  day_label:   text("day_label"),
+  order_index: integer("order_index").default(0),
+  created_at:  timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+// ------------------------------------------------------------------
+// workout_exercises
+// ------------------------------------------------------------------
+export const workoutExercises = pgTable("workout_exercises", {
+  id:           uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  day_id:       uuid("day_id").notNull().references(() => workoutPlanDays.id, { onDelete: "cascade" }),
+  exercise_id:  uuid("exercise_id").notNull().references(() => exerciseLibrary.id),
+  sets:         integer("sets").default(3),
+  reps:         integer("reps").default(10),
+  weight:       numeric("weight", { precision: 6, scale: 2 }),
+  rest_seconds: integer("rest_seconds").default(60),
+  notes:        text("notes"),
+  is_completed: boolean("is_completed").default(false),
+  created_at:   timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+// ------------------------------------------------------------------
+// workout_logs
+// ------------------------------------------------------------------
+export const workoutLogs = pgTable("workout_logs", {
+  id:               uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  user_id:          text("user_id").notNull(),
+  exercise_id:      uuid("exercise_id").references(() => exerciseLibrary.id),
+  plan_id:          uuid("plan_id").references(() => workoutPlans.id),
+  sets_done:        integer("sets_done"),
+  reps_done:        integer("reps_done"),
+  weight_used:      numeric("weight_used", { precision: 6, scale: 2 }),
+  duration_minutes: integer("duration_minutes"),
+  notes:            text("notes"),
+  log_date:         date("log_date").notNull(),
+  created_at:       timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+// ------------------------------------------------------------------
+// weight_logs
+// ------------------------------------------------------------------
+export const weightLogs = pgTable("weight_logs", {
+  id:         uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  user_id:    text("user_id").notNull(),
+  weight:     numeric("weight", { precision: 5, scale: 2 }).notNull(),
+  notes:      text("notes"),
+  log_date:   date("log_date").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+// ------------------------------------------------------------------
+// cardio_logs
+// ------------------------------------------------------------------
+export const cardioLogs = pgTable("cardio_logs", {
+  id:               uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  user_id:          text("user_id").notNull(),
+  cardio_type:      text("cardio_type").notNull(),
+  duration_minutes: integer("duration_minutes").notNull(),
+  intensity:        text("intensity").default("medium"),
+  calories_burned:  integer("calories_burned"),
+  notes:            text("notes"),
+  log_date:         date("log_date").notNull(),
+  created_at:       timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+// ------------------------------------------------------------------
 // TypeScript row types inferred from schema
 // ------------------------------------------------------------------
 export type Profile                  = typeof profiles.$inferSelect;
@@ -342,3 +481,12 @@ export type FinanceProjectEntry      = typeof financeProjectEntries.$inferSelect
 export type FinanceIncomeSource      = typeof financeIncomeSources.$inferSelect;
 export type FinanceDebtContact       = typeof financeDebtContacts.$inferSelect;
 export type FinanceDebtInstallment   = typeof financeDebtInstallments.$inferSelect;
+export type FitnessProfile           = typeof fitnessProfiles.$inferSelect;
+export type CalorieCalculation       = typeof calorieCalculations.$inferSelect;
+export type ExerciseLibrary          = typeof exerciseLibrary.$inferSelect;
+export type WorkoutPlan              = typeof workoutPlans.$inferSelect;
+export type WorkoutPlanDay           = typeof workoutPlanDays.$inferSelect;
+export type WorkoutExercise          = typeof workoutExercises.$inferSelect;
+export type WorkoutLog               = typeof workoutLogs.$inferSelect;
+export type WeightLog                = typeof weightLogs.$inferSelect;
+export type CardioLog                = typeof cardioLogs.$inferSelect;

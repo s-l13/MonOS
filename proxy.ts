@@ -76,6 +76,7 @@ export const config = {
     "/projects/:path*",
     "/tasks/:path*",
     "/finance/:path*",
+    "/fitness(.*)",
     "/prices(.*)",
     "/admin/:path*",
     "/profile(.*)",

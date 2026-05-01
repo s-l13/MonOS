@@ -56,6 +56,17 @@ export default async function Sidebar() {
     { href: "/finance/reports",   label: "التقارير" },
   ];
 
+  const fitnessLinks = [
+    { href: "/fitness/profile",   label: "الملف الرياضي" },
+    { href: "/fitness/calories",  label: "حاسبة السعرات" },
+    { href: "/fitness/exercises", label: "مكتبة التمارين" },
+    { href: "/fitness/workouts",  label: "جدول التمارين" },
+    { href: "/fitness/progress",  label: "تتبع الوزن" },
+    { href: "/fitness/cardio",    label: "الكارديو" },
+    { href: "/fitness/nutrition", label: "التغذية" },
+    { href: "/fitness/reports",   label: "التقارير" },
+  ];
+
   return (
     <aside className="w-full border-b border-gray-800 bg-gray-900 p-4 md:w-64 md:min-h-screen md:border-b-0 md:border-l md:border-l-gray-800">
       <div className="mb-6 flex items-center justify-between gap-2">
@@ -94,6 +105,27 @@ export default async function Sidebar() {
           </Link>
           <div className="mr-3 mt-0.5 border-r border-gray-700/60 pr-2">
             {financeLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="block rounded-lg px-3 py-1.5 text-xs text-gray-400 transition hover:bg-gray-800 hover:text-gray-200"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Fitness section */}
+        <div className="mt-1">
+          <Link
+            href="/fitness"
+            className="rounded-lg px-3 py-2 text-sm font-medium text-gray-300 transition hover:bg-gray-800 hover:text-gray-100 block"
+          >
+            الصحة والرياضة
+          </Link>
+          <div className="mr-3 mt-0.5 border-r border-gray-700/60 pr-2">
+            {fitnessLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
