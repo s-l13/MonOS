@@ -59,8 +59,7 @@ export default async function Sidebar() {
   const fitnessLinks = [
     { href: "/fitness/profile",   label: "الملف الرياضي" },
     { href: "/fitness/calories",  label: "حاسبة السعرات" },
-    { href: "/fitness/exercises", label: "مكتبة التمارين" },
-    { href: "/fitness/workouts",  label: "جدول التمارين" },
+    { href: "/fitness/workouts",  label: "التمارين والجدول" },
     { href: "/fitness/progress",  label: "تتبع الوزن" },
     { href: "/fitness/cardio",    label: "الكارديو" },
     { href: "/fitness/nutrition", label: "التغذية" },
