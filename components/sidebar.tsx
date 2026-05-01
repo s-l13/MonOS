@@ -10,14 +10,14 @@ export default async function Sidebar() {
   const metadata = (sessionClaims?.metadata ?? {}) as { role?: string };
   const isSuperAdmin = metadata.role === "super_admin";
 
-  let subtitle = "لوحتك التشغيلية";
+  let subtitle = "مساعدك الشخصي";
   let clerkFirstName: string | null = null;
   if (userId) {
     const client = await clerkClient();
     const clerkUser = await client.users.getUser(userId);
     clerkFirstName = clerkUser.firstName ?? null;
     if (clerkFirstName) {
-      subtitle = `لوحة ${clerkFirstName} التشغيلية`;
+      subtitle = `مساعد ${clerkFirstName} الشخصي`;
     }
   }
 
