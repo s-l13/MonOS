@@ -278,6 +278,15 @@ export async function updatePlanDay(formData: FormData) {
 
   if (!id || !day_name) return;
 
+  const [day] = await db.select({ plan_id: workoutPlanDays.plan_id })
+    .from(workoutPlanDays).where(eq(workoutPlanDays.id, id)).limit(1);
+  if (!day) return;
+  const [plan] = await db.select({ id: workoutPlans.id })
+    .from(workoutPlans)
+    .where(and(eq(workoutPlans.id, day.plan_id), eq(workoutPlans.user_id, userId)))
+    .limit(1);
+  if (!plan) return;
+
   await db
     .update(workoutPlanDays)
     .set({ day_name, day_label })
@@ -292,6 +301,15 @@ export async function deletePlanDay(formData: FormData) {
 
   const id = String(formData.get("id") || "").trim();
   if (!id) return;
+
+  const [day] = await db.select({ plan_id: workoutPlanDays.plan_id })
+    .from(workoutPlanDays).where(eq(workoutPlanDays.id, id)).limit(1);
+  if (!day) return;
+  const [plan] = await db.select({ id: workoutPlans.id })
+    .from(workoutPlans)
+    .where(and(eq(workoutPlans.id, day.plan_id), eq(workoutPlans.user_id, userId)))
+    .limit(1);
+  if (!plan) return;
 
   await db.delete(workoutPlanDays).where(eq(workoutPlanDays.id, id));
 
@@ -316,9 +334,33 @@ export async function addExerciseToDay(formData: FormData) {
 
   if (!day_id || !exercise_id) return;
 
+  // Verify day belongs to user's plan
+  const [day] = await db.select({ plan_id: workoutPlanDays.plan_id })
+    .from(workoutPlanDays).where(eq(workoutPlanDays.id, day_id)).limit(1);
+  if (!day) return;
+  const [plan] = await db.select({ id: workoutPlans.id })
+    .from(workoutPlans)
+    .where(and(eq(workoutPlans.id, day.plan_id), eq(workoutPlans.user_id, userId)))
+    .limit(1);
+  if (!plan) return;
+
   await db.insert(workoutExercises).values({ day_id, exercise_id, sets, reps, weight, rest_seconds, notes, is_completed: false });
 
   revalidatePath("/fitness/workouts");
+}
+
+async function verifyWorkoutExerciseOwnership(weId: string, userId: string): Promise<boolean> {
+  const [we] = await db.select({ day_id: workoutExercises.day_id })
+    .from(workoutExercises).where(eq(workoutExercises.id, weId)).limit(1);
+  if (!we) return false;
+  const [day] = await db.select({ plan_id: workoutPlanDays.plan_id })
+    .from(workoutPlanDays).where(eq(workoutPlanDays.id, we.day_id)).limit(1);
+  if (!day) return false;
+  const [plan] = await db.select({ id: workoutPlans.id })
+    .from(workoutPlans)
+    .where(and(eq(workoutPlans.id, day.plan_id), eq(workoutPlans.user_id, userId)))
+    .limit(1);
+  return !!plan;
 }
 
 export async function updateExerciseInDay(formData: FormData) {
@@ -333,6 +375,7 @@ export async function updateExerciseInDay(formData: FormData) {
   const notes       = String(formData.get("notes") || "").trim() || null;
 
   if (!id) return;
+  if (!await verifyWorkoutExerciseOwnership(id, userId)) return;
 
   await db
     .update(workoutExercises)
@@ -348,6 +391,7 @@ export async function removeExerciseFromDay(formData: FormData) {
 
   const id = String(formData.get("id") || "").trim();
   if (!id) return;
+  if (!await verifyWorkoutExerciseOwnership(id, userId)) return;
 
   await db.delete(workoutExercises).where(eq(workoutExercises.id, id));
 
@@ -361,6 +405,7 @@ export async function toggleExerciseComplete(formData: FormData) {
   const id          = String(formData.get("id") || "").trim();
   const isCompleted = formData.get("is_completed") === "true";
   if (!id) return;
+  if (!await verifyWorkoutExerciseOwnership(id, userId)) return;
 
   await db
     .update(workoutExercises)
@@ -520,6 +565,17 @@ export async function addMeal(formData: FormData) {
   revalidatePath("/fitness/nutrition");
 }
 
+async function verifyMealOwnership(mealId: string, userId: string): Promise<boolean> {
+  const [meal] = await db.select({ plan_id: nutritionMeals.plan_id })
+    .from(nutritionMeals).where(eq(nutritionMeals.id, mealId)).limit(1);
+  if (!meal) return false;
+  const [plan] = await db.select({ id: nutritionPlans.id })
+    .from(nutritionPlans)
+    .where(and(eq(nutritionPlans.id, meal.plan_id), eq(nutritionPlans.user_id, userId)))
+    .limit(1);
+  return !!plan;
+}
+
 export async function updateMeal(formData: FormData) {
   const { userId } = await auth();
   if (!userId) return;
@@ -531,6 +587,7 @@ export async function updateMeal(formData: FormData) {
   const notes       = String(formData.get("notes")       || "").trim() || null;
 
   if (!id || !meal_name) return;
+  if (!await verifyMealOwnership(id, userId)) return;
 
   await db
     .update(nutritionMeals)
@@ -546,6 +603,7 @@ export async function deleteMeal(formData: FormData) {
 
   const id = String(formData.get("id") || "").trim();
   if (!id) return;
+  if (!await verifyMealOwnership(id, userId)) return;
 
   await db.delete(nutritionMeals).where(eq(nutritionMeals.id, id));
 
