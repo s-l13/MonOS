@@ -49,6 +49,7 @@ export async function addPriceEntry(formData: FormData) {
   const quantity      = String(formData.get("quantity")      || "1").trim();
   const purchase_date = String(formData.get("purchase_date") || "").trim();
   const notes         = String(formData.get("notes")         || "").trim() || null;
+  const includes_tax  = formData.get("includes_tax") === "on";
 
   if (!product_id || !store_name || !price || !purchase_date) return;
 
@@ -56,7 +57,7 @@ export async function addPriceEntry(formData: FormData) {
 
   await db.insert(priceEntries).values({
     user_id: userId, product_id, store_name, city, price, quantity,
-    unit_price, purchase_date, notes,
+    unit_price, purchase_date, includes_tax, notes,
   });
 
   revalidatePath("/prices");
@@ -151,10 +152,11 @@ export async function addPriceEntryFromSession(formData: FormData) {
   const [profile] = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1);
   if (profile?.prices_banned) throw new Error("تم إيقاف صلاحيتك في التسعير");
 
-  const session_id = String(formData.get("session_id") || "").trim();
-  const product_id = String(formData.get("product_id") || "").trim();
-  const price      = String(formData.get("price")      || "").trim();
-  const quantity   = String(formData.get("quantity")   || "1").trim();
+  const session_id   = String(formData.get("session_id")  || "").trim();
+  const product_id   = String(formData.get("product_id")  || "").trim();
+  const price        = String(formData.get("price")       || "").trim();
+  const quantity     = String(formData.get("quantity")    || "1").trim();
+  const includes_tax = formData.get("includes_tax") === "on";
 
   if (!session_id || !product_id || !price) return;
 
@@ -177,6 +179,7 @@ export async function addPriceEntryFromSession(formData: FormData) {
     price,
     quantity,
     unit_price,
+    includes_tax,
     purchase_date: session.session_date,
   });
 
@@ -191,12 +194,13 @@ export async function addNewProductWithPrice(formData: FormData) {
   const [profile] = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1);
   if (profile?.prices_banned) throw new Error("تم إيقاف صلاحيتك في التسعير");
 
-  const session_id    = String(formData.get("session_id")    || "").trim();
-  const product_name  = String(formData.get("product_name")  || "").trim();
-  const category      = String(formData.get("category")      || "other").trim();
-  const unit          = String(formData.get("unit")          || "piece").trim();
-  const price         = String(formData.get("price")         || "").trim();
-  const quantity      = String(formData.get("quantity")      || "1").trim();
+  const session_id   = String(formData.get("session_id")   || "").trim();
+  const product_name = String(formData.get("product_name") || "").trim();
+  const category     = String(formData.get("category")     || "other").trim();
+  const unit         = String(formData.get("unit")         || "piece").trim();
+  const price        = String(formData.get("price")        || "").trim();
+  const quantity     = String(formData.get("quantity")     || "1").trim();
+  const includes_tax = formData.get("includes_tax") === "on";
 
   if (!session_id || !product_name || !price) return;
 
@@ -224,6 +228,7 @@ export async function addNewProductWithPrice(formData: FormData) {
     price,
     quantity,
     unit_price,
+    includes_tax,
     purchase_date: session.session_date,
   });
 

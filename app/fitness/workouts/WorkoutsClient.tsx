@@ -18,6 +18,9 @@ import {
   updateExerciseInDay,
   removeExerciseFromDay,
   toggleExerciseComplete,
+  addExercise,
+  updateExercise,
+  deleteExercise,
 } from "../actions";
 
 // ---------------------------------------------------------------------------
@@ -495,17 +498,69 @@ const DIFFICULTY_COLOR: Record<string, string> = {
 };
 
 function ExerciseLibrarySection({ exercises }: { exercises: LibEx[] }) {
-  const [filter, setFilter] = useState<string>("all");
+  const [filter,    setFilter]    = useState<string>("all");
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  const groups = Array.from(new Set(exercises.map((e) => e.muscle_group)));
+  const groups  = Array.from(new Set(exercises.map((e) => e.muscle_group)));
   const visible = filter === "all" ? exercises : exercises.filter((e) => e.muscle_group === filter);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-gray-400">مكتبة التمارين</h2>
+        <h2 className="text-sm font-semibold text-gray-400">مكتبة التمارين الخاصة بك</h2>
         <span className="text-xs text-gray-600">{exercises.length} تمرين</span>
       </div>
+
+      {/* Add new exercise */}
+      <details className="rounded-xl border border-gray-800 bg-gray-900">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3">
+          <span className="text-sm font-semibold text-green-400">+ إضافة تمرين جديد</span>
+          <span className="text-xs text-gray-600">انقر للفتح</span>
+        </summary>
+        <div className="border-t border-gray-800 px-5 pb-5 pt-4">
+          <form action={addExercise} className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="mb-1 block text-xs text-gray-400">اسم التمرين بالعربية *</label>
+              <input name="name_ar" required placeholder="بنش برس" className={INP} />
+            </div>
+            <div className="col-span-2">
+              <label className="mb-1 block text-xs text-gray-400">الاسم بالإنجليزية</label>
+              <input name="name_en" placeholder="Bench Press" className={INP} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-gray-400">المجموعة العضلية *</label>
+              <select name="muscle_group" required className={INP}>
+                {Object.entries(MUSCLE_AR).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-gray-400">الصعوبة</label>
+              <select name="difficulty" className={INP}>
+                {Object.entries(DIFFICULTY_AR).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="mb-1 block text-xs text-gray-400">الأدوات / المعدات</label>
+              <input name="equipment" placeholder="باربل، دمبل، كابل..." className={INP} />
+            </div>
+            <div className="col-span-2">
+              <label className="mb-1 block text-xs text-gray-400">رابط الفيديو (اختياري)</label>
+              <input name="video_url" type="url" placeholder="https://..." className={INP} />
+            </div>
+            <div className="col-span-2">
+              <label className="mb-1 block text-xs text-gray-400">وصف / ملاحظات</label>
+              <textarea name="description" rows={2} placeholder="طريقة الأداء..." className={INP + " resize-none"} />
+            </div>
+            <button type="submit" className="col-span-2 rounded-lg bg-green-700 py-2.5 text-sm font-semibold text-white transition hover:bg-green-600">
+              إضافة التمرين
+            </button>
+          </form>
+        </div>
+      </details>
 
       {/* Filter chips */}
       <div className="flex flex-wrap gap-2">
@@ -538,27 +593,86 @@ function ExerciseLibrarySection({ exercises }: { exercises: LibEx[] }) {
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         {visible.map((ex) => (
           <div key={ex.id} className="rounded-xl border border-gray-800 bg-gray-900 p-4 space-y-2">
-            <div>
-              <p className="font-semibold text-sm text-gray-100">{ex.name_ar}</p>
-              {ex.name_en && <p className="text-xs text-gray-500">{ex.name_en}</p>}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-blue-950 px-2 py-0.5 text-xs text-blue-300">
-                {MUSCLE_AR[ex.muscle_group] ?? ex.muscle_group}
-              </span>
-              {ex.equipment && (
-                <span className="rounded-full bg-gray-800 px-2 py-0.5 text-xs text-gray-400">
-                  {ex.equipment}
-                </span>
-              )}
-              {ex.difficulty && (
-                <span className={`rounded-full px-2 py-0.5 text-xs ${DIFFICULTY_COLOR[ex.difficulty] ?? "bg-gray-800 text-gray-400"}`}>
-                  {DIFFICULTY_AR[ex.difficulty] ?? ex.difficulty}
-                </span>
-              )}
-            </div>
-            {ex.description && (
-              <p className="text-xs text-gray-600 leading-relaxed">{ex.description}</p>
+            {editingId === ex.id ? (
+              /* Edit form */
+              <form action={updateExercise} onSubmit={() => setEditingId(null)} className="space-y-2">
+                <input type="hidden" name="id" value={ex.id} />
+                <input name="name_ar" required defaultValue={ex.name_ar} placeholder="الاسم بالعربية" className={SMALL_INP + " w-full"} />
+                <input name="name_en" defaultValue={ex.name_en} placeholder="English name" className={SMALL_INP + " w-full"} />
+                <select name="muscle_group" defaultValue={ex.muscle_group} className={SMALL_INP + " w-full"}>
+                  {Object.entries(MUSCLE_AR).map(([v, l]) => (
+                    <option key={v} value={v}>{l}</option>
+                  ))}
+                </select>
+                <input name="equipment" defaultValue={ex.equipment ?? ""} placeholder="المعدات" className={SMALL_INP + " w-full"} />
+                <select name="difficulty" defaultValue={ex.difficulty ?? "medium"} className={SMALL_INP + " w-full"}>
+                  {Object.entries(DIFFICULTY_AR).map(([v, l]) => (
+                    <option key={v} value={v}>{l}</option>
+                  ))}
+                </select>
+                <input name="video_url" type="url" defaultValue={ex.video_url ?? ""} placeholder="https://..." className={SMALL_INP + " w-full"} />
+                <textarea name="description" defaultValue={ex.description ?? ""} rows={2} className={SMALL_INP + " w-full resize-none"} />
+                <div className="flex gap-2">
+                  <button type="submit" className="flex-1 rounded-lg bg-blue-700 py-1.5 text-xs font-semibold text-white hover:bg-blue-600 transition">
+                    حفظ
+                  </button>
+                  <button type="button" onClick={() => setEditingId(null)} className="flex-1 rounded-lg bg-gray-700 py-1.5 text-xs text-gray-300 hover:bg-gray-600 transition">
+                    إلغاء
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* Display */
+              <>
+                <div>
+                  <p className="font-bold text-sm text-gray-100">{ex.name_ar}</p>
+                  {ex.name_en && <p className="text-xs text-gray-500">{ex.name_en}</p>}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="rounded-full bg-blue-950 px-2 py-0.5 text-xs text-blue-300">
+                    {MUSCLE_AR[ex.muscle_group] ?? ex.muscle_group}
+                  </span>
+                  {ex.equipment && (
+                    <span className="rounded-full bg-gray-800 px-2 py-0.5 text-xs text-gray-400">
+                      {ex.equipment}
+                    </span>
+                  )}
+                  {ex.difficulty && (
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${DIFFICULTY_COLOR[ex.difficulty] ?? "bg-gray-800 text-gray-400"}`}>
+                      {DIFFICULTY_AR[ex.difficulty] ?? ex.difficulty}
+                    </span>
+                  )}
+                </div>
+                {ex.description && (
+                  <p className="text-xs text-gray-600 leading-relaxed">{ex.description}</p>
+                )}
+                {ex.video_url && (
+                  <a
+                    href={ex.video_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition"
+                  >
+                    ▶ شاهد الفيديو
+                  </a>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={() => setEditingId(ex.id)}
+                    className="rounded-lg bg-gray-800 px-3 py-1 text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-700 transition"
+                  >
+                    تعديل
+                  </button>
+                  <form action={deleteExercise} onSubmit={(e) => {
+                    if (!confirm("حذف هذا التمرين نهائياً؟")) e.preventDefault();
+                  }}>
+                    <input type="hidden" name="id" value={ex.id} />
+                    <button type="submit" className="rounded-lg bg-gray-800 px-3 py-1 text-xs text-red-400 hover:text-red-300 hover:bg-gray-700 transition">
+                      حذف
+                    </button>
+                  </form>
+                </div>
+              </>
             )}
           </div>
         ))}

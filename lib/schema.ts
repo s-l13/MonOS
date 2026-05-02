@@ -19,11 +19,13 @@ export const profiles = pgTable("profiles", {
   email:           text("email"),
   role:            text("role").notNull().default("user"),
   approval_status: text("approval_status").notNull().default("pending"),
-  prices_banned:   boolean("prices_banned").notNull().default(false),
-  created_at:      timestamp("created_at", { withTimezone: true })
-                     .notNull()
-                     .default(sql`now()`),
-  approved_at:     timestamp("approved_at", { withTimezone: true }),
+  prices_banned:         boolean("prices_banned").notNull().default(false),
+  background_preference: text("background_preference").default("default"),
+  tax_rate:              numeric("tax_rate", { precision: 5, scale: 2 }).default("15"),
+  created_at:            timestamp("created_at", { withTimezone: true })
+                           .notNull()
+                           .default(sql`now()`),
+  approved_at:           timestamp("approved_at", { withTimezone: true }),
 });
 
 // ------------------------------------------------------------------
@@ -316,6 +318,7 @@ export const priceEntries = pgTable("price_entries", {
   quantity:      numeric("quantity", { precision: 10, scale: 2 }).notNull().default("1"),
   unit_price:    numeric("unit_price", { precision: 10, scale: 2 }).notNull(),
   purchase_date: date("purchase_date").notNull(),
+  includes_tax:  boolean("includes_tax").notNull().default(false),
   notes:         text("notes"),
   created_at:    timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
 });
@@ -373,6 +376,8 @@ export const exerciseLibrary = pgTable("exercise_library", {
   image_url:    text("image_url"),
   video_url:    text("video_url"),
   description:  text("description"),
+  created_by:   text("created_by").notNull().default("system"),
+  is_system:    boolean("is_system").notNull().default(true),
   created_at:   timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
 });
 
@@ -464,6 +469,32 @@ export const cardioLogs = pgTable("cardio_logs", {
 });
 
 // ------------------------------------------------------------------
+// nutrition_plans
+// ------------------------------------------------------------------
+export const nutritionPlans = pgTable("nutrition_plans", {
+  id:          text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  user_id:     text("user_id").notNull(),
+  day_name:    text("day_name").notNull(),
+  day_label:   text("day_label").notNull(),
+  is_rest_day: boolean("is_rest_day").notNull().default(false),
+  created_at:  timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+// ------------------------------------------------------------------
+// nutrition_meals
+// ------------------------------------------------------------------
+export const nutritionMeals = pgTable("nutrition_meals", {
+  id:          text("id").primaryKey().default(sql`gen_random_uuid()::text`),
+  plan_id:     text("plan_id").notNull().references(() => nutritionPlans.id, { onDelete: "cascade" }),
+  meal_name:   text("meal_name").notNull(),
+  meal_time:   text("meal_time"),
+  meal_order:  integer("meal_order").notNull().default(0),
+  ingredients: text("ingredients"),
+  notes:       text("notes"),
+  created_at:  timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+// ------------------------------------------------------------------
 // TypeScript row types inferred from schema
 // ------------------------------------------------------------------
 export type Profile                  = typeof profiles.$inferSelect;
@@ -490,3 +521,5 @@ export type WorkoutExercise          = typeof workoutExercises.$inferSelect;
 export type WorkoutLog               = typeof workoutLogs.$inferSelect;
 export type WeightLog                = typeof weightLogs.$inferSelect;
 export type CardioLog                = typeof cardioLogs.$inferSelect;
+export type NutritionPlan            = typeof nutritionPlans.$inferSelect;
+export type NutritionMeal            = typeof nutritionMeals.$inferSelect;

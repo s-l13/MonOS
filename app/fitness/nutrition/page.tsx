@@ -2,14 +2,30 @@ import Sidebar from "@/components/sidebar";
 import Card from "@/components/ui/card";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { fitnessProfiles, calorieCalculations } from "@/lib/schema";
-import { eq, desc } from "drizzle-orm";
-import { saveNutritionNotes } from "../actions";
+import { fitnessProfiles, calorieCalculations, nutritionPlans, nutritionMeals } from "@/lib/schema";
+import { eq, desc, inArray, asc } from "drizzle-orm";
+import {
+  saveNutritionNotes,
+  createNutritionPlan,
+  deleteNutritionPlan,
+  addMeal,
+  deleteMeal,
+} from "../actions";
 import Link from "next/link";
 
 // ---------------------------------------------------------------------------
-// Goal-based tips
+// Constants
 // ---------------------------------------------------------------------------
+
+const WEEK_DAYS = [
+  { day_name: "saturday",  day_label: "السبت" },
+  { day_name: "sunday",    day_label: "الأحد" },
+  { day_name: "monday",    day_label: "الاثنين" },
+  { day_name: "tuesday",   day_label: "الثلاثاء" },
+  { day_name: "wednesday", day_label: "الأربعاء" },
+  { day_name: "thursday",  day_label: "الخميس" },
+  { day_name: "friday",    day_label: "الجمعة" },
+];
 
 const GOAL_TIPS: Record<string, { title: string; tips: string[] }> = {
   weight_loss: {
@@ -108,6 +124,31 @@ export default async function NutritionPage() {
   const weight = fp?.current_weight ? parseFloat(String(fp.current_weight)) : null;
   const water  = weight ? (weight * WATER_ML_PER_KG).toFixed(1) : null;
 
+  // Fetch weekly plans
+  const plans = await db
+    .select()
+    .from(nutritionPlans)
+    .where(eq(nutritionPlans.user_id, userId));
+
+  const planIds = plans.map((p) => p.id);
+  const allMeals =
+    planIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(nutritionMeals)
+          .where(inArray(nutritionMeals.plan_id, planIds))
+          .orderBy(asc(nutritionMeals.meal_order), asc(nutritionMeals.created_at));
+
+  const mealsByPlan = new Map<string, typeof allMeals>();
+  for (const meal of allMeals) {
+    const bucket = mealsByPlan.get(meal.plan_id) ?? [];
+    bucket.push(meal);
+    mealsByPlan.set(meal.plan_id, bucket);
+  }
+
+  const planByDay = new Map(plans.map((p) => [p.day_name, p]));
+
   return (
     <div className="min-h-screen md:flex">
       <Sidebar />
@@ -122,7 +163,7 @@ export default async function NutritionPage() {
             <h1 className="text-2xl font-bold text-gray-100">التغذية</h1>
           </div>
 
-          {/* ── Recommended macros ──────────────────────────────────── */}
+          {/* ── Macro summary bar ──────────────────────────────────────── */}
           {calc ? (
             <Card>
               <div className="mb-3 flex items-center justify-between">
@@ -146,6 +187,13 @@ export default async function NutritionPage() {
                   </div>
                 ))}
               </div>
+              {water && (
+                <div className="mt-3 flex items-center gap-2 rounded-lg border border-blue-900/40 bg-blue-950/20 px-4 py-2">
+                  <span className="text-blue-300">💧</span>
+                  <span className="text-sm text-blue-300 font-semibold">{water} لتر ماء يومياً</span>
+                  <span className="text-xs text-gray-500 mr-auto">33 مل × {weight} كغ</span>
+                </div>
+              )}
             </Card>
           ) : (
             <Card>
@@ -158,29 +206,146 @@ export default async function NutritionPage() {
             </Card>
           )}
 
-          {/* ── Water intake ─────────────────────────────────────────── */}
-          <Card>
-            <h2 className="mb-3 text-sm font-semibold text-gray-400">الماء اليومي</h2>
-            {water ? (
-              <div className="flex items-center gap-4">
-                <span className="text-4xl">💧</span>
-                <div>
-                  <p className="text-2xl font-bold text-blue-400">{water} لتر</p>
-                  <p className="text-xs text-gray-500">
-                    يومياً — 33 مل لكل كيلو (وزنك الحالي: {weight} كغ)
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">
-                أدخل وزنك في{" "}
-                <Link href="/fitness/profile" className="text-blue-400 hover:underline">
-                  الملف الرياضي
-                </Link>{" "}
-                لحساب كمية الماء الموصى بها.
-              </p>
-            )}
-          </Card>
+          {/* ── 7-day weekly plan ──────────────────────────────────────── */}
+          <div>
+            <h2 className="mb-3 text-sm font-semibold text-gray-400">خطة التغذية الأسبوعية</h2>
+            <div className="space-y-3">
+              {WEEK_DAYS.map(({ day_name, day_label }) => {
+                const plan = planByDay.get(day_name);
+                const meals = plan ? (mealsByPlan.get(plan.id) ?? []) : [];
+
+                return (
+                  <div key={day_name} className="rounded-xl border border-gray-800 bg-gray-900">
+                    <div className="flex items-center justify-between px-5 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-gray-200">{day_label}</span>
+                        {plan?.is_rest_day && (
+                          <span className="rounded-full bg-gray-800 px-2 py-0.5 text-xs text-gray-500">راحة</span>
+                        )}
+                        {plan && !plan.is_rest_day && (
+                          <span className="rounded-full bg-green-950 px-2 py-0.5 text-xs text-green-400">
+                            {meals.length} وجبة
+                          </span>
+                        )}
+                      </div>
+                      {plan ? (
+                        <form action={deleteNutritionPlan}>
+                          <input type="hidden" name="id" value={plan.id} />
+                          <button
+                            type="submit"
+                            className="text-xs text-red-500 hover:text-red-400 transition"
+                          >
+                            حذف اليوم
+                          </button>
+                        </form>
+                      ) : (
+                        <div className="flex gap-2">
+                          <form action={createNutritionPlan} className="flex gap-1">
+                            <input type="hidden" name="day_name" value={day_name} />
+                            <input type="hidden" name="day_label" value={day_label} />
+                            <button
+                              type="submit"
+                              className="rounded-lg bg-blue-700 px-3 py-1 text-xs font-medium text-white hover:bg-blue-600 transition"
+                            >
+                              + إضافة خطة
+                            </button>
+                          </form>
+                          <form action={createNutritionPlan} className="flex gap-1">
+                            <input type="hidden" name="day_name" value={day_name} />
+                            <input type="hidden" name="day_label" value={day_label} />
+                            <input type="hidden" name="is_rest_day" value="on" />
+                            <button
+                              type="submit"
+                              className="rounded-lg bg-gray-700 px-3 py-1 text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-600 transition"
+                            >
+                              يوم راحة
+                            </button>
+                          </form>
+                        </div>
+                      )}
+                    </div>
+
+                    {plan && !plan.is_rest_day && (
+                      <div className="border-t border-gray-800 px-5 pb-4 pt-3 space-y-3">
+                        {/* Meal list */}
+                        {meals.length > 0 && (
+                          <div className="space-y-2">
+                            {meals.map((meal) => (
+                              <div key={meal.id} className="flex items-start justify-between gap-2 rounded-lg border border-gray-800 bg-gray-800/50 px-3 py-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium text-sm text-gray-200">{meal.meal_name}</span>
+                                    {meal.meal_time && (
+                                      <span className="text-xs text-gray-500">{meal.meal_time}</span>
+                                    )}
+                                  </div>
+                                  {meal.ingredients && (
+                                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{meal.ingredients}</p>
+                                  )}
+                                  {meal.notes && (
+                                    <p className="text-xs text-gray-600 mt-0.5">{meal.notes}</p>
+                                  )}
+                                </div>
+                                <form action={deleteMeal} className="shrink-0">
+                                  <input type="hidden" name="id" value={meal.id} />
+                                  <button type="submit" className="text-xs text-red-500 hover:text-red-400 transition">
+                                    حذف
+                                  </button>
+                                </form>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Add meal form */}
+                        <details className="rounded-lg border border-gray-800">
+                          <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs text-green-400 hover:text-green-300">
+                            + إضافة وجبة
+                          </summary>
+                          <div className="border-t border-gray-800 px-3 pb-3 pt-2">
+                            <form action={addMeal} className="space-y-2">
+                              <input type="hidden" name="plan_id" value={plan.id} />
+                              <input type="hidden" name="meal_order" value={String(meals.length)} />
+                              <div className="flex gap-2">
+                                <input
+                                  name="meal_name"
+                                  required
+                                  placeholder="اسم الوجبة *"
+                                  className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-2 py-1.5 text-xs text-gray-100 placeholder-gray-600 focus:border-blue-600 focus:outline-none"
+                                />
+                                <input
+                                  name="meal_time"
+                                  placeholder="الوقت (7ص)"
+                                  className="w-24 rounded-lg border border-gray-700 bg-gray-800 px-2 py-1.5 text-xs text-gray-100 placeholder-gray-600 focus:border-blue-600 focus:outline-none"
+                                />
+                              </div>
+                              <textarea
+                                name="ingredients"
+                                placeholder="المكونات والمقادير..."
+                                rows={2}
+                                className="w-full rounded-lg border border-gray-700 bg-gray-800 px-2 py-1.5 text-xs text-gray-100 placeholder-gray-600 focus:border-blue-600 focus:outline-none resize-none"
+                              />
+                              <input
+                                name="notes"
+                                placeholder="ملاحظات إضافية..."
+                                className="w-full rounded-lg border border-gray-700 bg-gray-800 px-2 py-1.5 text-xs text-gray-100 placeholder-gray-600 focus:border-blue-600 focus:outline-none"
+                              />
+                              <button
+                                type="submit"
+                                className="w-full rounded-lg bg-green-700 py-1.5 text-xs font-semibold text-white hover:bg-green-600 transition"
+                              >
+                                إضافة الوجبة
+                              </button>
+                            </form>
+                          </div>
+                        </details>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
           {/* ── Goal-based tips ──────────────────────────────────────── */}
           <Card>
@@ -197,18 +362,18 @@ export default async function NutritionPage() {
             </ul>
           </Card>
 
-          {/* ── Nutrition notes (editable) ───────────────────────────── */}
+          {/* ── Nutrition notes ──────────────────────────────────────── */}
           <Card>
             <h2 className="mb-3 text-sm font-semibold text-gray-400">ملاحظاتي الغذائية</h2>
             <p className="mb-3 text-xs text-gray-600">
-              خطة وجباتك الشخصية، أوقات الأكل، الأطعمة التي تتجنبها، أي ملاحظات تريد تذكرها.
+              ملاحظات حرة — أطعمة تتجنبها، مكملات، أي شيء تريد تذكره.
             </p>
             <form action={saveNutritionNotes} className="space-y-3">
               <textarea
                 name="nutrition_notes"
-                rows={8}
+                rows={6}
                 defaultValue={fp?.nutrition_notes ?? ""}
-                placeholder={`مثال:\nوجبة 1 (7ص): شوفان + بياض بيض\nوجبة 2 (10ص): تمر + مكسرات\nوجبة 3 (1م): أرز + دجاج + سلطة\nوجبة 4 (4م): بروتين شيك\nوجبة 5 (7م): سمك + خضار`}
+                placeholder="ملاحظاتك الغذائية الشخصية..."
                 className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-gray-100 placeholder-gray-700 focus:border-blue-600 focus:outline-none leading-relaxed"
               />
               <button
@@ -218,24 +383,6 @@ export default async function NutritionPage() {
                 حفظ الملاحظات
               </button>
             </form>
-          </Card>
-
-          {/* ── Macro quick-reference ────────────────────────────────── */}
-          <Card>
-            <h2 className="mb-4 text-sm font-semibold text-gray-400">مرجع سريع</h2>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              {[
-                { title: "البروتين", desc: "4 سعر/غرام — بناء العضلات والترميم", emoji: "🥩" },
-                { title: "الكربوهيدرات", desc: "4 سعر/غرام — الطاقة والأداء", emoji: "🍚" },
-                { title: "الدهون", desc: "9 سعر/غرام — هرمونات وامتصاص الفيتامينات", emoji: "🥑" },
-              ].map(({ title, desc, emoji }) => (
-                <div key={title} className="rounded-lg border border-gray-800 bg-gray-800 p-4">
-                  <span className="text-2xl">{emoji}</span>
-                  <p className="mt-2 font-semibold text-gray-200">{title}</p>
-                  <p className="mt-1 text-xs text-gray-500 leading-relaxed">{desc}</p>
-                </div>
-              ))}
-            </div>
           </Card>
 
         </div>

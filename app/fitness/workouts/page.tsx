@@ -10,11 +10,15 @@ import {
 import { eq, asc, desc, inArray } from "drizzle-orm";
 import Link from "next/link";
 import WorkoutsClient from "./WorkoutsClient";
+import { initUserExercises } from "../actions";
 import type { PlanFull, DayFull, ExRow } from "./WorkoutsClient";
 
 export default async function WorkoutsPage() {
   const { userId } = await auth();
   if (!userId) return null;
+
+  // Seed user's private exercise library on first visit
+  await initUserExercises(userId);
 
   // Fetch plans
   const plans = await db
@@ -48,10 +52,11 @@ export default async function WorkoutsPage() {
           .where(inArray(workoutExercises.day_id, dayIds))
           .orderBy(asc(workoutExercises.created_at));
 
-  // Fetch exercise library for the add-exercise dropdown
+  // Fetch user's private exercise library (created_by = userId)
   const allLibExercises = await db
     .select()
     .from(exerciseLibrary)
+    .where(eq(exerciseLibrary.created_by, userId))
     .orderBy(asc(exerciseLibrary.muscle_group), asc(exerciseLibrary.name_ar));
 
   // Build nested structure

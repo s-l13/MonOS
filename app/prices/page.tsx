@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { priceProducts, priceEntries } from "@/lib/schema";
+import { priceProducts, priceEntries, profiles } from "@/lib/schema";
 import { sql, eq, count } from "drizzle-orm";
 import { createProduct } from "./actions";
+import TaxSettings from "./TaxSettings";
 
 const CATEGORIES: Record<string, string> = {
   food:        "مواد غذائية",
@@ -27,29 +28,40 @@ export default async function PricesPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  await auth();
+  const { userId } = await auth();
   const { q } = await searchParams;
+
+  // Fetch user tax rate
+  let taxRate = 15;
+  if (userId) {
+    const [prof] = await db
+      .select({ tax_rate: profiles.tax_rate })
+      .from(profiles)
+      .where(eq(profiles.id, userId));
+    if (prof?.tax_rate) taxRate = parseFloat(String(prof.tax_rate));
+  }
 
   const allProducts = await db.select().from(priceProducts);
 
   const filtered = q
-    ? allProducts.filter((p) =>
-        p.name.toLowerCase().includes(q.toLowerCase())
-      )
+    ? allProducts.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()))
     : allProducts;
+
+  // Aggregate query: compute min/max/avg normalized to price WITHOUT tax
+  const taxDiv = sql.raw(String(1 + taxRate / 100));
 
   const stats = await db
     .select({
-      product_id:        priceEntries.product_id,
-      min_unit_price:    sql<string>`min(${priceEntries.unit_price})`,
-      max_unit_price:    sql<string>`max(${priceEntries.unit_price})`,
-      avg_unit_price:    sql<string>`avg(${priceEntries.unit_price})`,
-      total_entries:     sql<number>`count(*)::int`,
-      contributors:      sql<number>`count(distinct ${priceEntries.user_id})::int`,
-      min_store_name:    sql<string>`(array_agg(${priceEntries.store_name} order by ${priceEntries.unit_price} asc))[1]`,
-      min_city:          sql<string>`(array_agg(${priceEntries.city} order by ${priceEntries.unit_price} asc))[1]`,
-      max_store_name:    sql<string>`(array_agg(${priceEntries.store_name} order by ${priceEntries.unit_price} desc))[1]`,
-      max_city:          sql<string>`(array_agg(${priceEntries.city} order by ${priceEntries.unit_price} desc))[1]`,
+      product_id:     priceEntries.product_id,
+      // Normalized: if includes_tax, divide by (1 + rate); else use as-is
+      min_pretax:     sql<string>`min(CASE WHEN ${priceEntries.includes_tax} THEN ${priceEntries.unit_price}::numeric / ${taxDiv} ELSE ${priceEntries.unit_price}::numeric END)`,
+      max_pretax:     sql<string>`max(CASE WHEN ${priceEntries.includes_tax} THEN ${priceEntries.unit_price}::numeric / ${taxDiv} ELSE ${priceEntries.unit_price}::numeric END)`,
+      avg_pretax:     sql<string>`avg(CASE WHEN ${priceEntries.includes_tax} THEN ${priceEntries.unit_price}::numeric / ${taxDiv} ELSE ${priceEntries.unit_price}::numeric END)`,
+      total_entries:  sql<number>`count(*)::int`,
+      contributors:   sql<number>`count(distinct ${priceEntries.user_id})::int`,
+      // Store name of cheapest (by normalized price)
+      min_store_name: sql<string>`(array_agg(${priceEntries.store_name} order by CASE WHEN ${priceEntries.includes_tax} THEN ${priceEntries.unit_price}::numeric / ${taxDiv} ELSE ${priceEntries.unit_price}::numeric END asc))[1]`,
+      min_city:       sql<string>`(array_agg(${priceEntries.city} order by CASE WHEN ${priceEntries.includes_tax} THEN ${priceEntries.unit_price}::numeric / ${taxDiv} ELSE ${priceEntries.unit_price}::numeric END asc))[1]`,
     })
     .from(priceEntries)
     .groupBy(priceEntries.product_id);
@@ -66,6 +78,14 @@ export default async function PricesPage({
       </Link>
       <h1 className="text-2xl font-bold mb-4">مقارنة الأسعار</h1>
 
+      {/* Tax settings bar */}
+      {userId && (
+        <div className="mb-6">
+          <TaxSettings taxRate={taxRate} />
+        </div>
+      )}
+
+      {/* Shopping session CTA */}
       <div className="mb-8 rounded-xl border border-blue-800 bg-blue-950/30 p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -131,26 +151,35 @@ export default async function PricesPage({
 
                 {s ? (
                   <div className="flex flex-col gap-1 text-sm">
-                    <div className="flex items-baseline gap-1">
+                    {/* Cheapest — without tax */}
+                    <div className="flex flex-wrap items-baseline gap-1">
                       <span className="text-green-400 font-bold text-lg">
-                        {Number(s.min_unit_price).toFixed(2)}
+                        {Number(s.min_pretax).toFixed(2)}
                       </span>
                       <span className="text-gray-400 text-xs">ر.س</span>
-                      <span className="text-gray-500 text-xs">
-                        أرخص — {s.min_store_name}{s.min_city ? ` · ${s.min_city}` : ""}
+                      <span className="rounded-full bg-gray-800 px-1.5 py-0.5 text-[10px] text-gray-500">
+                        بدون ضريبة
                       </span>
                     </div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-red-400 font-semibold">
-                        {Number(s.max_unit_price).toFixed(2)}
+                    <div className="text-gray-500 text-xs">
+                      أرخص — {s.min_store_name}{s.min_city ? ` · ${s.min_city}` : ""}
+                    </div>
+                    {/* With tax */}
+                    <div className="text-gray-500 text-xs">
+                      مع ضريبة ({taxRate}%):{" "}
+                      <span className="text-gray-400">
+                        {(Number(s.min_pretax) * (1 + taxRate / 100)).toFixed(2)} ر.س
                       </span>
-                      <span className="text-gray-400 text-xs">ر.س</span>
-                      <span className="text-gray-500 text-xs">
-                        أغلى — {s.max_store_name}{s.max_city ? ` · ${s.max_city}` : ""}
+                    </div>
+                    <div className="flex items-baseline gap-1 mt-0.5">
+                      <span className="text-red-400 font-semibold text-sm">
+                        {Number(s.max_pretax).toFixed(2)}
                       </span>
+                      <span className="text-gray-400 text-xs">ر.س أغلى</span>
                     </div>
                     <div className="text-gray-400 text-xs">
-                      متوسط: <span className="text-gray-300">{Number(s.avg_unit_price).toFixed(2)} ر.س</span>
+                      متوسط: <span className="text-gray-300">{Number(s.avg_pretax).toFixed(2)} ر.س</span>
+                      <span className="text-gray-600 mr-1">(بدون ضريبة)</span>
                     </div>
                     <div className="text-gray-500 text-xs">
                       {s.total_entries} سجل من {s.contributors} مساهم

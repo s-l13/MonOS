@@ -13,6 +13,9 @@ import {
   workoutPlans,
   workoutPlanDays,
   workoutExercises,
+  exerciseLibrary,
+  nutritionPlans,
+  nutritionMeals,
 } from "@/lib/schema";
 
 // ---------------------------------------------------------------------------
@@ -365,4 +368,186 @@ export async function toggleExerciseComplete(formData: FormData) {
     .where(eq(workoutExercises.id, id));
 
   revalidatePath("/fitness/workouts");
+}
+
+// ---------------------------------------------------------------------------
+// Exercise library — per-user private exercises
+// ---------------------------------------------------------------------------
+
+export async function initUserExercises(userId: string) {
+  const existingCount = await db
+    .select({ cnt: count() })
+    .from(exerciseLibrary)
+    .where(eq(exerciseLibrary.created_by, userId));
+
+  if (existingCount[0].cnt > 0) return;
+
+  const systemExercises = await db
+    .select()
+    .from(exerciseLibrary)
+    .where(eq(exerciseLibrary.is_system, true));
+
+  if (systemExercises.length === 0) return;
+
+  await db.insert(exerciseLibrary).values(
+    systemExercises.map(({ id: _id, created_at: _ca, ...rest }) => ({
+      ...rest,
+      created_by: userId,
+      is_system: false,
+    })),
+  );
+}
+
+export async function addExercise(formData: FormData) {
+  const { userId } = await auth();
+  if (!userId) return;
+
+  const name_ar      = String(formData.get("name_ar")      || "").trim();
+  const name_en      = String(formData.get("name_en")      || "").trim();
+  const muscle_group = String(formData.get("muscle_group") || "").trim();
+  const equipment    = String(formData.get("equipment")    || "").trim() || null;
+  const difficulty   = String(formData.get("difficulty")   || "medium").trim();
+  const video_url    = String(formData.get("video_url")    || "").trim() || null;
+  const description  = String(formData.get("description")  || "").trim() || null;
+
+  if (!name_ar || !muscle_group) return;
+
+  await db.insert(exerciseLibrary).values({
+    name_ar, name_en: name_en || name_ar, muscle_group, equipment, difficulty,
+    video_url, description, created_by: userId, is_system: false,
+  });
+
+  revalidatePath("/fitness/workouts");
+}
+
+export async function updateExercise(formData: FormData) {
+  const { userId } = await auth();
+  if (!userId) return;
+
+  const id           = String(formData.get("id")           || "").trim();
+  const name_ar      = String(formData.get("name_ar")      || "").trim();
+  const name_en      = String(formData.get("name_en")      || "").trim();
+  const muscle_group = String(formData.get("muscle_group") || "").trim();
+  const equipment    = String(formData.get("equipment")    || "").trim() || null;
+  const difficulty   = String(formData.get("difficulty")   || "medium").trim();
+  const video_url    = String(formData.get("video_url")    || "").trim() || null;
+  const description  = String(formData.get("description")  || "").trim() || null;
+
+  if (!id || !name_ar || !muscle_group) return;
+
+  await db
+    .update(exerciseLibrary)
+    .set({ name_ar, name_en: name_en || name_ar, muscle_group, equipment, difficulty, video_url, description })
+    .where(and(eq(exerciseLibrary.id, id), eq(exerciseLibrary.created_by, userId)));
+
+  revalidatePath("/fitness/workouts");
+}
+
+export async function deleteExercise(formData: FormData) {
+  const { userId } = await auth();
+  if (!userId) return;
+
+  const id = String(formData.get("id") || "").trim();
+  if (!id) return;
+
+  await db
+    .delete(exerciseLibrary)
+    .where(and(eq(exerciseLibrary.id, id), eq(exerciseLibrary.created_by, userId)));
+
+  revalidatePath("/fitness/workouts");
+}
+
+// ---------------------------------------------------------------------------
+// Nutrition plans
+// ---------------------------------------------------------------------------
+
+export async function createNutritionPlan(formData: FormData) {
+  const { userId } = await auth();
+  if (!userId) return;
+
+  const day_name    = String(formData.get("day_name")    || "").trim();
+  const day_label   = String(formData.get("day_label")   || "").trim();
+  const is_rest_day = formData.get("is_rest_day") === "on";
+
+  if (!day_name || !day_label) return;
+
+  await db.insert(nutritionPlans).values({ user_id: userId, day_name, day_label, is_rest_day });
+
+  revalidatePath("/fitness/nutrition");
+}
+
+export async function deleteNutritionPlan(formData: FormData) {
+  const { userId } = await auth();
+  if (!userId) return;
+
+  const id = String(formData.get("id") || "").trim();
+  if (!id) return;
+
+  await db
+    .delete(nutritionPlans)
+    .where(and(eq(nutritionPlans.id, id), eq(nutritionPlans.user_id, userId)));
+
+  revalidatePath("/fitness/nutrition");
+}
+
+// ---------------------------------------------------------------------------
+// Nutrition meals
+// ---------------------------------------------------------------------------
+
+export async function addMeal(formData: FormData) {
+  const { userId } = await auth();
+  if (!userId) return;
+
+  const plan_id     = String(formData.get("plan_id")     || "").trim();
+  const meal_name   = String(formData.get("meal_name")   || "").trim();
+  const meal_time   = String(formData.get("meal_time")   || "").trim() || null;
+  const meal_order  = parseInt(String(formData.get("meal_order") || "0")) || 0;
+  const ingredients = String(formData.get("ingredients") || "").trim() || null;
+  const notes       = String(formData.get("notes")       || "").trim() || null;
+
+  if (!plan_id || !meal_name) return;
+
+  // Verify plan ownership
+  const [plan] = await db
+    .select({ id: nutritionPlans.id })
+    .from(nutritionPlans)
+    .where(and(eq(nutritionPlans.id, plan_id), eq(nutritionPlans.user_id, userId)))
+    .limit(1);
+  if (!plan) return;
+
+  await db.insert(nutritionMeals).values({ plan_id, meal_name, meal_time, meal_order, ingredients, notes });
+
+  revalidatePath("/fitness/nutrition");
+}
+
+export async function updateMeal(formData: FormData) {
+  const { userId } = await auth();
+  if (!userId) return;
+
+  const id          = String(formData.get("id")          || "").trim();
+  const meal_name   = String(formData.get("meal_name")   || "").trim();
+  const meal_time   = String(formData.get("meal_time")   || "").trim() || null;
+  const ingredients = String(formData.get("ingredients") || "").trim() || null;
+  const notes       = String(formData.get("notes")       || "").trim() || null;
+
+  if (!id || !meal_name) return;
+
+  await db
+    .update(nutritionMeals)
+    .set({ meal_name, meal_time, ingredients, notes })
+    .where(eq(nutritionMeals.id, id));
+
+  revalidatePath("/fitness/nutrition");
+}
+
+export async function deleteMeal(formData: FormData) {
+  const { userId } = await auth();
+  if (!userId) return;
+
+  const id = String(formData.get("id") || "").trim();
+  if (!id) return;
+
+  await db.delete(nutritionMeals).where(eq(nutritionMeals.id, id));
+
+  revalidatePath("/fitness/nutrition");
 }

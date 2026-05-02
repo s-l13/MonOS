@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { priceProducts, priceEntries, profiles } from "@/lib/schema";
-import { sql, eq, asc, inArray } from "drizzle-orm";
+import { eq, asc, inArray } from "drizzle-orm";
 import { addPriceEntry, deletePriceEntry } from "../actions";
+import TaxSettings from "../TaxSettings";
 
 const CATEGORIES: Record<string, string> = {
   food:        "مواد غذائية",
@@ -23,6 +24,21 @@ const UNITS: Record<string, string> = {
   meter:  "متر",
 };
 
+// ---------------------------------------------------------------------------
+// Tax helpers
+// ---------------------------------------------------------------------------
+
+function computePrices(unitPrice: number, includesTax: boolean, taxRate: number) {
+  if (includesTax) {
+    return { withoutTax: unitPrice / (1 + taxRate / 100), withTax: unitPrice };
+  }
+  return { withoutTax: unitPrice, withTax: unitPrice * (1 + taxRate / 100) };
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
 export default async function PriceDetailPage({
   params,
 }: {
@@ -40,36 +56,42 @@ export default async function PriceDetailPage({
 
   if (!product) notFound();
 
-  const entries = await db
-    .select()
-    .from(priceEntries)
-    .where(eq(priceEntries.product_id, id))
-    .orderBy(asc(priceEntries.unit_price));
+  // Fetch entries and user tax rate in parallel
+  const [entries, profileRows] = await Promise.all([
+    db.select().from(priceEntries).where(eq(priceEntries.product_id, id)).orderBy(asc(priceEntries.unit_price)),
+    userId
+      ? db.select({ tax_rate: profiles.tax_rate }).from(profiles).where(eq(profiles.id, userId)).limit(1)
+      : Promise.resolve([]),
+  ]);
 
-  const [aggRow] = await db
-    .select({
-      min_unit: sql<string>`min(${priceEntries.unit_price})`,
-      max_unit: sql<string>`max(${priceEntries.unit_price})`,
-      avg_unit: sql<string>`avg(${priceEntries.unit_price})`,
-      total:    sql<number>`count(*)::int`,
+  const taxRate = profileRows[0]?.tax_rate ? parseFloat(String(profileRows[0].tax_rate)) : 15;
+
+  // Compute normalized prices for every entry
+  const enriched = entries
+    .map((e) => {
+      const up = Number(e.unit_price);
+      const { withoutTax, withTax } = computePrices(up, e.includes_tax, taxRate);
+      return { ...e, up, withoutTax, withTax };
     })
-    .from(priceEntries)
-    .where(eq(priceEntries.product_id, id));
+    .sort((a, b) => a.withoutTax - b.withoutTax);
 
-  const minPrice = aggRow?.min_unit ? Number(aggRow.min_unit) : null;
-  const maxPrice = aggRow?.max_unit ? Number(aggRow.max_unit) : null;
-  const avgPrice = aggRow?.avg_unit ? Number(aggRow.avg_unit) : null;
-  const total    = aggRow?.total ?? 0;
+  // Stats from normalized prices
+  const minPretax  = enriched.length > 0 ? enriched[0].withoutTax : null;
+  const maxPretax  = enriched.length > 0 ? enriched[enriched.length - 1].withoutTax : null;
+  const avgPretax  = enriched.length > 0
+    ? enriched.reduce((s, e) => s + e.withoutTax, 0) / enriched.length
+    : null;
+  const total = enriched.length;
 
-  // For super admin: fetch contributor emails from profiles
+  // For super admin: contributor emails
   let emailMap = new Map<string, string>();
   if (isSuperAdmin && entries.length > 0) {
     const distinctIds = [...new Set(entries.map((e) => e.user_id))];
-    const profileRows = await db
+    const profileData = await db
       .select({ id: profiles.id, email: profiles.email })
       .from(profiles)
       .where(inArray(profiles.id, distinctIds));
-    emailMap = new Map(profileRows.map((p) => [p.id, p.email ?? p.id]));
+    emailMap = new Map(profileData.map((p) => [p.id, p.email ?? p.id]));
   }
 
   const today = new Date().toISOString().split("T")[0];
@@ -100,24 +122,37 @@ export default async function PriceDetailPage({
         </p>
       </div>
 
-      {/* Stat cards */}
+      {/* Tax settings */}
+      {userId && <div className="mb-6"><TaxSettings taxRate={taxRate} /></div>}
+
+      {/* Stat cards — all prices WITHOUT tax (fair baseline) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <div className="rounded-xl bg-gray-900 border border-green-900/40 p-4">
-          <p className="text-gray-400 text-xs mb-1">أرخص سعر</p>
+          <p className="text-gray-400 text-xs mb-1">أرخص سعر (بدون ضريبة)</p>
           <p className="text-green-400 text-xl font-bold">
-            {minPrice !== null ? `${minPrice.toFixed(2)} ر.س` : "—"}
+            {minPretax !== null ? `${minPretax.toFixed(2)} ر.س` : "—"}
           </p>
+          {minPretax !== null && (
+            <p className="text-gray-600 text-xs mt-1">
+              مع ضريبة: {(minPretax * (1 + taxRate / 100)).toFixed(2)} ر.س
+            </p>
+          )}
         </div>
         <div className="rounded-xl bg-gray-900 border border-red-900/40 p-4">
-          <p className="text-gray-400 text-xs mb-1">أغلى سعر</p>
+          <p className="text-gray-400 text-xs mb-1">أغلى سعر (بدون ضريبة)</p>
           <p className="text-red-400 text-xl font-bold">
-            {maxPrice !== null ? `${maxPrice.toFixed(2)} ر.س` : "—"}
+            {maxPretax !== null ? `${maxPretax.toFixed(2)} ر.س` : "—"}
           </p>
+          {maxPretax !== null && (
+            <p className="text-gray-600 text-xs mt-1">
+              مع ضريبة: {(maxPretax * (1 + taxRate / 100)).toFixed(2)} ر.س
+            </p>
+          )}
         </div>
         <div className="rounded-xl bg-gray-900 border border-blue-900/40 p-4">
-          <p className="text-gray-400 text-xs mb-1">متوسط السعر</p>
+          <p className="text-gray-400 text-xs mb-1">متوسط السعر (بدون ضريبة)</p>
           <p className="text-blue-400 text-xl font-bold">
-            {avgPrice !== null ? `${avgPrice.toFixed(2)} ر.س` : "—"}
+            {avgPretax !== null ? `${avgPretax.toFixed(2)} ر.س` : "—"}
           </p>
         </div>
         <div className="rounded-xl bg-gray-900 border border-gray-800 p-4">
@@ -127,8 +162,11 @@ export default async function PriceDetailPage({
       </div>
 
       {/* Comparison table */}
-      {entries.length > 0 && (
+      {enriched.length > 0 && (
         <div className="mb-10 overflow-x-auto">
+          <p className="text-xs text-gray-600 mb-2">
+            مرتّبة حسب السعر بدون ضريبة — نسبة الضريبة المطبقة: {taxRate}%
+          </p>
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b border-gray-800 text-gray-400 text-xs">
@@ -137,7 +175,9 @@ export default async function PriceDetailPage({
                 <th className="text-right py-2 px-3 font-medium">المدينة</th>
                 <th className="text-right py-2 px-3 font-medium">الكمية</th>
                 <th className="text-right py-2 px-3 font-medium">السعر الكلي</th>
-                <th className="text-right py-2 px-3 font-medium">سعر الوحدة</th>
+                <th className="text-right py-2 px-3 font-medium">شامل ضريبة؟</th>
+                <th className="text-right py-2 px-3 font-medium">بدون ضريبة</th>
+                <th className="text-right py-2 px-3 font-medium">مع ضريبة</th>
                 <th className="text-right py-2 px-3 font-medium">تصنيف</th>
                 {isSuperAdmin && (
                   <th className="text-right py-2 px-3 font-medium">المسجّل</th>
@@ -146,25 +186,29 @@ export default async function PriceDetailPage({
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => {
-                const up    = Number(entry.unit_price);
-                const isMin = minPrice !== null && up === minPrice;
-                const isMax = maxPrice !== null && up === maxPrice;
+              {enriched.map((entry, idx) => {
+                const isMin    = idx === 0;
+                const isMax    = idx === enriched.length - 1 && enriched.length > 1;
                 const canDelete = entry.user_id === userId || isSuperAdmin;
                 return (
-                  <tr
-                    key={entry.id}
-                    className="border-b border-gray-800/60 hover:bg-gray-900/50"
-                  >
-                    <td className="py-2 px-3 text-gray-400 text-xs whitespace-nowrap">
-                      {entry.purchase_date}
-                    </td>
+                  <tr key={entry.id} className="border-b border-gray-800/60 hover:bg-gray-900/50">
+                    <td className="py-2 px-3 text-gray-400 text-xs whitespace-nowrap">{entry.purchase_date}</td>
                     <td className="py-2 px-3 font-medium">{entry.store_name}</td>
                     <td className="py-2 px-3 text-gray-400">{entry.city ?? "—"}</td>
                     <td className="py-2 px-3 text-gray-300">{Number(entry.quantity).toFixed(2)}</td>
                     <td className="py-2 px-3 text-gray-300">{Number(entry.price).toFixed(2)} ر.س</td>
-                    <td className={`py-2 px-3 font-semibold ${isMin ? "text-green-400" : isMax ? "text-red-400" : "text-gray-200"}`}>
-                      {up.toFixed(2)} ر.س
+                    <td className="py-2 px-3">
+                      {entry.includes_tax ? (
+                        <span className="rounded-full bg-amber-900/50 px-2 py-0.5 text-xs text-amber-400">نعم</span>
+                      ) : (
+                        <span className="rounded-full bg-gray-800 px-2 py-0.5 text-xs text-gray-500">لا</span>
+                      )}
+                    </td>
+                    <td className={`py-2 px-3 font-semibold tabular-nums ${isMin ? "text-green-400" : isMax ? "text-red-400" : "text-gray-200"}`}>
+                      {entry.withoutTax.toFixed(2)} ر.س
+                    </td>
+                    <td className="py-2 px-3 text-gray-400 tabular-nums text-xs">
+                      {entry.withTax.toFixed(2)} ر.س
                     </td>
                     <td className="py-2 px-3">
                       {isMin ? (
@@ -185,10 +229,7 @@ export default async function PriceDetailPage({
                         <form action={deletePriceEntry}>
                           <input type="hidden" name="id" value={entry.id} />
                           <input type="hidden" name="product_id" value={id} />
-                          <button
-                            type="submit"
-                            className="text-red-500 hover:text-red-400 text-xs transition"
-                          >
+                          <button type="submit" className="text-red-500 hover:text-red-400 text-xs transition">
                             حذف
                           </button>
                         </form>
@@ -253,6 +294,17 @@ export default async function PriceDetailPage({
               className="w-full rounded-lg bg-gray-800 border border-gray-700 px-4 py-2 text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
+          {/* Tax checkbox */}
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              name="includes_tax"
+              type="checkbox"
+              className="h-4 w-4 rounded border-gray-600 bg-gray-700 accent-blue-500"
+            />
+            <span className="text-sm text-gray-300">
+              السعر شامل ضريبة القيمة المضافة ({taxRate}%)
+            </span>
+          </label>
           <textarea
             name="notes"
             placeholder="ملاحظات (اختياري)"

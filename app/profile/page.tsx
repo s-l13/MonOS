@@ -3,7 +3,11 @@ import Card from "@/components/ui/card";
 import PageHeader from "@/components/ui/page-header";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import { db } from "@/lib/db";
+import { profiles } from "@/lib/schema";
+import { eq } from "drizzle-orm";
 import { updateProfile } from "./actions";
+import BackgroundPicker from "./BackgroundPicker";
 
 export default async function ProfilePage() {
   const { userId } = await auth();
@@ -14,12 +18,17 @@ export default async function ProfilePage() {
 
   const email = user.emailAddresses[0]?.emailAddress ?? "-";
 
+  const [profile] = await db
+    .select({ background_preference: profiles.background_preference })
+    .from(profiles)
+    .where(eq(profiles.id, userId));
+
   return (
     <div className="min-h-screen md:flex">
       <Sidebar />
 
       <main className="flex-1 p-6 md:p-10">
-        <div className="mx-auto max-w-2xl">
+        <div className="mx-auto max-w-2xl space-y-6">
           <PageHeader
             title="الملف الشخصي"
             description="إدارة بياناتك الشخصية"
@@ -69,6 +78,11 @@ export default async function ProfilePage() {
                 </button>
               </div>
             </form>
+          </Card>
+
+          <Card>
+            <h2 className="mb-4 text-sm font-semibold text-gray-400">تخصيص خلفية الموقع</h2>
+            <BackgroundPicker currentBg={profile?.background_preference ?? "default"} />
           </Card>
         </div>
       </main>

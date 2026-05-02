@@ -206,6 +206,10 @@ export default async function ShoppingSessionPage({
                       />
                     </div>
                   </div>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input name="includes_tax" type="checkbox" className="h-4 w-4 rounded border-gray-600 bg-gray-700 accent-blue-500" />
+                    <span className="text-sm text-gray-300">السعر شامل ضريبة القيمة المضافة</span>
+                  </label>
                   <button
                     type="submit"
                     className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-700 transition"
@@ -265,6 +269,10 @@ export default async function ShoppingSessionPage({
                       />
                     </div>
                   </div>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input name="includes_tax" type="checkbox" className="h-4 w-4 rounded border-gray-600 bg-gray-700 accent-blue-500" />
+                    <span className="text-sm text-gray-300">السعر شامل ضريبة القيمة المضافة</span>
+                  </label>
                   <button
                     type="submit"
                     className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium hover:bg-green-700 transition"
