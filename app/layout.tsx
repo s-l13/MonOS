@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Tajawal } from "next/font/google";
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { profiles } from "@/lib/schema";
-import { eq } from "drizzle-orm";
+import { profiles, notifications } from "@/lib/schema";
+import { eq, and, count } from "drizzle-orm";
+import MobileNav from "@/components/MobileNav";
 import "./globals.css";
 
 const tajawal = Tajawal({
@@ -42,24 +43,46 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { userId } = await auth();
+  const { userId, sessionClaims } = await auth();
+  const metadata = (sessionClaims?.metadata ?? {}) as { role?: string };
+  const isSuperAdmin = metadata.role === "super_admin";
 
   let bgStyle = BG_VALUES.default;
+  let firstName: string | null = null;
+  let unreadCount = 0;
+
   if (userId) {
-    const [prof] = await db
-      .select({ bg: profiles.background_preference })
-      .from(profiles)
-      .where(eq(profiles.id, userId));
+    const client = await clerkClient();
+    const [profRows, clerkUser, countRows] = await Promise.all([
+      db.select({ bg: profiles.background_preference }).from(profiles).where(eq(profiles.id, userId)),
+      client.users.getUser(userId),
+      db.select({ count: count() }).from(notifications)
+        .where(and(eq(notifications.user_id, userId), eq(notifications.is_read, false))),
+    ]);
+
+    const prof = profRows[0] ?? null;
     if (prof?.bg && prof.bg !== "default" && BG_VALUES[prof.bg]) {
       bgStyle = BG_VALUES[prof.bg];
     }
+    firstName = clerkUser.firstName ?? null;
+    unreadCount = countRows[0].count;
   }
 
   return (
     <ClerkProvider>
       <html lang="ar" dir="rtl" className={tajawal.variable}>
         <body style={{ background: bgStyle }} className="text-gray-100">
-          {children}
+          {userId && (
+            <MobileNav
+              firstName={firstName}
+              isSuperAdmin={isSuperAdmin}
+              unreadCount={unreadCount}
+              userId={userId}
+            />
+          )}
+          <div className={userId ? "pt-14 md:pt-0" : undefined}>
+            {children}
+          </div>
         </body>
       </html>
     </ClerkProvider>

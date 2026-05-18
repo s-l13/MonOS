@@ -67,7 +67,7 @@ export default async function Sidebar() {
   ];
 
   return (
-    <aside className="w-full border-b border-gray-800 bg-gray-900 p-4 md:w-64 md:min-h-screen md:border-b-0 md:border-l md:border-l-gray-800">
+    <aside className="hidden md:flex md:flex-col md:w-64 md:min-h-screen md:border-l md:border-l-gray-800 md:bg-gray-900 md:p-4">
       <div className="mb-6 flex items-center justify-between gap-2">
         <div>
           <h2 className="text-xl font-bold text-gray-100">Mon OS</h2>

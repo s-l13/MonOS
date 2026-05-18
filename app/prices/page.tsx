@@ -2,7 +2,7 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { priceProducts, priceEntries, profiles } from "@/lib/schema";
-import { sql, eq, count } from "drizzle-orm";
+import { sql, eq, count, ilike, or } from "drizzle-orm";
 import { createProduct } from "./actions";
 import TaxSettings from "./TaxSettings";
 
@@ -41,11 +41,14 @@ export default async function PricesPage({
     if (prof?.tax_rate) taxRate = parseFloat(String(prof.tax_rate));
   }
 
-  const allProducts = await db.select().from(priceProducts);
-
   const filtered = q
-    ? allProducts.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()))
-    : allProducts;
+    ? await db.select().from(priceProducts).where(
+        or(
+          ilike(priceProducts.name, `%${q}%`),
+          ilike(priceProducts.notes, `%${q}%`),
+        )
+      )
+    : await db.select().from(priceProducts);
 
   // Aggregate query: compute min/max/avg normalized to price WITHOUT tax
   const taxDiv = sql.raw(String(1 + taxRate / 100));
